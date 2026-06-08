@@ -1,0 +1,28 @@
+package androidx.datastore.preferences.protobuf;
+
+import java.nio.ByteBuffer;
+
+/* compiled from: r8-map-id-035a71e92ccd2a2b8039d43fa6fa76ac249b2a7f96061be914156707964ce49d */
+@CheckReturnValue
+/* loaded from: C:\Users\herod\Downloads\Jeux\classes.dex */
+abstract class BufferAllocator {
+    private static final BufferAllocator UNPOOLED = new BufferAllocator() { // from class: androidx.datastore.preferences.protobuf.BufferAllocator.1
+        @Override // androidx.datastore.preferences.protobuf.BufferAllocator
+        public AllocatedBuffer allocateDirectBuffer(int i) {
+            return AllocatedBuffer.wrap(ByteBuffer.allocateDirect(i));
+        }
+
+        @Override // androidx.datastore.preferences.protobuf.BufferAllocator
+        public AllocatedBuffer allocateHeapBuffer(int i) {
+            return AllocatedBuffer.wrap(new byte[i]);
+        }
+    };
+
+    public static BufferAllocator unpooled() {
+        return UNPOOLED;
+    }
+
+    public abstract AllocatedBuffer allocateDirectBuffer(int i);
+
+    public abstract AllocatedBuffer allocateHeapBuffer(int i);
+}

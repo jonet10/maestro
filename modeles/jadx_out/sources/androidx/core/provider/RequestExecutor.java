@@ -1,0 +1,139 @@
+package androidx.core.provider;
+
+import android.os.Handler;
+import android.os.Process;
+import androidx.annotation.IntRange;
+import androidx.annotation.NonNull;
+import androidx.core.util.Consumer;
+import androidx.core.util.Preconditions;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
+/* compiled from: r8-map-id-035a71e92ccd2a2b8039d43fa6fa76ac249b2a7f96061be914156707964ce49d */
+/* loaded from: C:\Users\herod\Downloads\Jeux\classes.dex */
+class RequestExecutor {
+
+    /* compiled from: r8-map-id-035a71e92ccd2a2b8039d43fa6fa76ac249b2a7f96061be914156707964ce49d */
+    public static class DefaultThreadFactory implements ThreadFactory {
+        private int mPriority;
+        private String mThreadName;
+
+        /* compiled from: r8-map-id-035a71e92ccd2a2b8039d43fa6fa76ac249b2a7f96061be914156707964ce49d */
+        public static class ProcessPriorityThread extends Thread {
+            private final int mPriority;
+
+            public ProcessPriorityThread(Runnable runnable, String str, int i) {
+                super(runnable, str);
+                this.mPriority = i;
+            }
+
+            @Override // java.lang.Thread, java.lang.Runnable
+            public void run() {
+                Process.setThreadPriority(this.mPriority);
+                super.run();
+            }
+        }
+
+        public DefaultThreadFactory(@NonNull String str, int i) {
+            this.mThreadName = str;
+            this.mPriority = i;
+        }
+
+        @Override // java.util.concurrent.ThreadFactory
+        public Thread newThread(Runnable runnable) {
+            return new ProcessPriorityThread(runnable, this.mThreadName, this.mPriority);
+        }
+    }
+
+    /* compiled from: r8-map-id-035a71e92ccd2a2b8039d43fa6fa76ac249b2a7f96061be914156707964ce49d */
+    public static class HandlerExecutor implements Executor {
+        private final Handler mHandler;
+
+        public HandlerExecutor(@NonNull Handler handler) {
+            this.mHandler = (Handler) Preconditions.checkNotNull(handler);
+        }
+
+        @Override // java.util.concurrent.Executor
+        public void execute(@NonNull Runnable runnable) {
+            if (this.mHandler.post((Runnable) Preconditions.checkNotNull(runnable))) {
+                return;
+            }
+            throw new RejectedExecutionException(this.mHandler + " is shutting down");
+        }
+    }
+
+    /* compiled from: r8-map-id-035a71e92ccd2a2b8039d43fa6fa76ac249b2a7f96061be914156707964ce49d */
+    public static class ReplyRunnable<T> implements Runnable {
+
+        @NonNull
+        private Callable<T> mCallable;
+
+        @NonNull
+        private Consumer<T> mConsumer;
+
+        @NonNull
+        private Handler mHandler;
+
+        public ReplyRunnable(@NonNull Handler handler, @NonNull Callable<T> callable, @NonNull Consumer<T> consumer) {
+            this.mCallable = callable;
+            this.mConsumer = consumer;
+            this.mHandler = handler;
+        }
+
+        @Override // java.lang.Runnable
+        public void run() {
+            final T t9;
+            try {
+                t9 = this.mCallable.call();
+            } catch (Exception unused) {
+                t9 = null;
+            }
+            final Consumer<T> consumer = this.mConsumer;
+            this.mHandler.post(new Runnable() { // from class: androidx.core.provider.RequestExecutor.ReplyRunnable.1
+                /* JADX WARN: Multi-variable type inference failed */
+                @Override // java.lang.Runnable
+                public void run() {
+                    consumer.accept(t9);
+                }
+            });
+        }
+    }
+
+    private RequestExecutor() {
+    }
+
+    public static ThreadPoolExecutor createDefaultExecutor(@NonNull String str, int i, @IntRange(from = 0) int i6) {
+        ThreadPoolExecutor threadPoolExecutor = new ThreadPoolExecutor(0, 1, i6, TimeUnit.MILLISECONDS, new LinkedBlockingDeque(), new DefaultThreadFactory(str, i));
+        threadPoolExecutor.allowCoreThreadTimeOut(true);
+        return threadPoolExecutor;
+    }
+
+    public static Executor createHandlerExecutor(@NonNull Handler handler) {
+        return new HandlerExecutor(handler);
+    }
+
+    public static <T> void execute(@NonNull Executor executor, @NonNull Callable<T> callable, @NonNull Consumer<T> consumer) {
+        executor.execute(new ReplyRunnable(CalleeHandler.create(), callable, consumer));
+    }
+
+    public static <T> T submit(@NonNull ExecutorService executorService, @NonNull Callable<T> callable, @IntRange(from = 0) int i) throws InterruptedException {
+        try {
+            return executorService.submit(callable).get(i, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e10) {
+            throw e10;
+        } catch (ExecutionException e11) {
+            com.google.gson.internal.a.k(e11);
+            return null;
+        } catch (TimeoutException unused) {
+            throw new InterruptedException("timeout");
+        }
+    }
+}

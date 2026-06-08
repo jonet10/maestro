@@ -1,0 +1,255 @@
+package androidx.leanback.app;
+
+import android.app.Fragment;
+import android.os.Bundle;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import androidx.leanback.widget.ItemBridgeAdapter;
+import androidx.leanback.widget.ListRow;
+import androidx.leanback.widget.ObjectAdapter;
+import androidx.leanback.widget.OnChildViewHolderSelectedListener;
+import androidx.leanback.widget.PresenterSelector;
+import androidx.leanback.widget.Row;
+import androidx.leanback.widget.VerticalGridView;
+import androidx.recyclerview.widget.RecyclerView;
+
+/* compiled from: r8-map-id-035a71e92ccd2a2b8039d43fa6fa76ac249b2a7f96061be914156707964ce49d */
+@Deprecated
+/* loaded from: C:\Users\herod\Downloads\Jeux\classes.dex */
+abstract class BaseRowFragment extends Fragment {
+    private static final String CURRENT_SELECTED_POSITION = "currentSelectedPosition";
+    private ObjectAdapter mAdapter;
+    private boolean mPendingTransitionPrepare;
+    private PresenterSelector mPresenterSelector;
+    VerticalGridView mVerticalGridView;
+    final ItemBridgeAdapter mBridgeAdapter = new ItemBridgeAdapter();
+    int mSelectedPosition = -1;
+    LateSelectionObserver mLateSelectionObserver = new LateSelectionObserver();
+    private final OnChildViewHolderSelectedListener mRowSelectedListener = new OnChildViewHolderSelectedListener() { // from class: androidx.leanback.app.BaseRowFragment.1
+        @Override // androidx.leanback.widget.OnChildViewHolderSelectedListener
+        public void onChildViewHolderSelected(RecyclerView recyclerView, RecyclerView.ViewHolder viewHolder, int i, int i6) {
+            BaseRowFragment baseRowFragment = BaseRowFragment.this;
+            if (baseRowFragment.mLateSelectionObserver.mIsLateSelection) {
+                return;
+            }
+            baseRowFragment.mSelectedPosition = i;
+            baseRowFragment.onRowSelected(recyclerView, viewHolder, i, i6);
+        }
+    };
+
+    /* compiled from: r8-map-id-035a71e92ccd2a2b8039d43fa6fa76ac249b2a7f96061be914156707964ce49d */
+    public final class LateSelectionObserver extends RecyclerView.AdapterDataObserver {
+        boolean mIsLateSelection = false;
+
+        public LateSelectionObserver() {
+        }
+
+        public void clear() {
+            if (this.mIsLateSelection) {
+                this.mIsLateSelection = false;
+                BaseRowFragment.this.mBridgeAdapter.unregisterAdapterDataObserver(this);
+            }
+        }
+
+        @Override // androidx.recyclerview.widget.RecyclerView.AdapterDataObserver
+        public void onChanged() {
+            performLateSelection();
+        }
+
+        @Override // androidx.recyclerview.widget.RecyclerView.AdapterDataObserver
+        public void onItemRangeInserted(int i, int i6) {
+            performLateSelection();
+        }
+
+        public void performLateSelection() {
+            clear();
+            BaseRowFragment baseRowFragment = BaseRowFragment.this;
+            VerticalGridView verticalGridView = baseRowFragment.mVerticalGridView;
+            if (verticalGridView != null) {
+                verticalGridView.setSelectedPosition(baseRowFragment.mSelectedPosition);
+            }
+        }
+
+        public void startLateSelection() {
+            this.mIsLateSelection = true;
+            BaseRowFragment.this.mBridgeAdapter.registerAdapterDataObserver(this);
+        }
+    }
+
+    public VerticalGridView findGridViewFromRoot(View view) {
+        return (VerticalGridView) view;
+    }
+
+    public final ObjectAdapter getAdapter() {
+        return this.mAdapter;
+    }
+
+    public final ItemBridgeAdapter getBridgeAdapter() {
+        return this.mBridgeAdapter;
+    }
+
+    public Object getItem(Row row, int i) {
+        if (row instanceof ListRow) {
+            return ((ListRow) row).getAdapter().get(i);
+        }
+        return null;
+    }
+
+    public abstract int getLayoutResourceId();
+
+    public final PresenterSelector getPresenterSelector() {
+        return this.mPresenterSelector;
+    }
+
+    public int getSelectedPosition() {
+        return this.mSelectedPosition;
+    }
+
+    public final VerticalGridView getVerticalGridView() {
+        return this.mVerticalGridView;
+    }
+
+    @Override // android.app.Fragment
+    public View onCreateView(LayoutInflater layoutInflater, ViewGroup viewGroup, Bundle bundle) {
+        View inflate = layoutInflater.inflate(getLayoutResourceId(), viewGroup, false);
+        this.mVerticalGridView = findGridViewFromRoot(inflate);
+        if (this.mPendingTransitionPrepare) {
+            this.mPendingTransitionPrepare = false;
+            onTransitionPrepare();
+        }
+        return inflate;
+    }
+
+    @Override // android.app.Fragment
+    public void onDestroyView() {
+        super.onDestroyView();
+        this.mLateSelectionObserver.clear();
+        VerticalGridView verticalGridView = this.mVerticalGridView;
+        if (verticalGridView != null) {
+            verticalGridView.swapAdapter(null, true);
+            this.mVerticalGridView = null;
+        }
+    }
+
+    @Override // android.app.Fragment
+    public void onSaveInstanceState(Bundle bundle) {
+        super.onSaveInstanceState(bundle);
+        bundle.putInt(CURRENT_SELECTED_POSITION, this.mSelectedPosition);
+    }
+
+    public void onTransitionEnd() {
+        VerticalGridView verticalGridView = this.mVerticalGridView;
+        if (verticalGridView != null) {
+            verticalGridView.setLayoutFrozen(false);
+            this.mVerticalGridView.setAnimateChildLayout(true);
+            this.mVerticalGridView.setPruneChild(true);
+            this.mVerticalGridView.setFocusSearchDisabled(false);
+            this.mVerticalGridView.setScrollEnabled(true);
+        }
+    }
+
+    public boolean onTransitionPrepare() {
+        VerticalGridView verticalGridView = this.mVerticalGridView;
+        if (verticalGridView == null) {
+            this.mPendingTransitionPrepare = true;
+            return false;
+        }
+        verticalGridView.setAnimateChildLayout(false);
+        this.mVerticalGridView.setScrollEnabled(false);
+        return true;
+    }
+
+    public void onTransitionStart() {
+        VerticalGridView verticalGridView = this.mVerticalGridView;
+        if (verticalGridView != null) {
+            verticalGridView.setPruneChild(false);
+            this.mVerticalGridView.setLayoutFrozen(true);
+            this.mVerticalGridView.setFocusSearchDisabled(true);
+        }
+    }
+
+    @Override // android.app.Fragment
+    public void onViewCreated(View view, Bundle bundle) {
+        if (bundle != null) {
+            this.mSelectedPosition = bundle.getInt(CURRENT_SELECTED_POSITION, -1);
+        }
+        setAdapterAndSelection();
+        this.mVerticalGridView.setOnChildViewHolderSelectedListener(this.mRowSelectedListener);
+    }
+
+    public final void setAdapter(ObjectAdapter objectAdapter) {
+        if (this.mAdapter != objectAdapter) {
+            this.mAdapter = objectAdapter;
+            updateAdapter();
+        }
+    }
+
+    public void setAdapterAndSelection() {
+        if (this.mAdapter == null) {
+            return;
+        }
+        RecyclerView.Adapter adapter = this.mVerticalGridView.getAdapter();
+        ItemBridgeAdapter itemBridgeAdapter = this.mBridgeAdapter;
+        if (adapter != itemBridgeAdapter) {
+            this.mVerticalGridView.setAdapter(itemBridgeAdapter);
+        }
+        if (this.mBridgeAdapter.getItemCount() == 0 && this.mSelectedPosition >= 0) {
+            this.mLateSelectionObserver.startLateSelection();
+            return;
+        }
+        int i = this.mSelectedPosition;
+        if (i >= 0) {
+            this.mVerticalGridView.setSelectedPosition(i);
+        }
+    }
+
+    public void setAlignment(int i) {
+        VerticalGridView verticalGridView = this.mVerticalGridView;
+        if (verticalGridView != null) {
+            verticalGridView.setItemAlignmentOffset(0);
+            this.mVerticalGridView.setItemAlignmentOffsetPercent(-1.0f);
+            this.mVerticalGridView.setWindowAlignmentOffset(i);
+            this.mVerticalGridView.setWindowAlignmentOffsetPercent(-1.0f);
+            this.mVerticalGridView.setWindowAlignment(0);
+        }
+    }
+
+    public final void setPresenterSelector(PresenterSelector presenterSelector) {
+        if (this.mPresenterSelector != presenterSelector) {
+            this.mPresenterSelector = presenterSelector;
+            updateAdapter();
+        }
+    }
+
+    public void setSelectedPosition(int i, boolean z9) {
+        if (this.mSelectedPosition == i) {
+            return;
+        }
+        this.mSelectedPosition = i;
+        VerticalGridView verticalGridView = this.mVerticalGridView;
+        if (verticalGridView == null || this.mLateSelectionObserver.mIsLateSelection) {
+            return;
+        }
+        if (z9) {
+            verticalGridView.setSelectedPositionSmooth(i);
+        } else {
+            verticalGridView.setSelectedPosition(i);
+        }
+    }
+
+    public void updateAdapter() {
+        this.mBridgeAdapter.setAdapter(this.mAdapter);
+        this.mBridgeAdapter.setPresenter(this.mPresenterSelector);
+        if (this.mVerticalGridView != null) {
+            setAdapterAndSelection();
+        }
+    }
+
+    public void setSelectedPosition(int i) {
+        setSelectedPosition(i, true);
+    }
+
+    public void onRowSelected(RecyclerView recyclerView, RecyclerView.ViewHolder viewHolder, int i, int i6) {
+    }
+}
