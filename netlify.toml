@@ -1,7 +1,7 @@
 [build]
   base = "mobile"
   command = "npx expo export -p web"
-  publish = "mobile/dist"
+  publish = "dist"
 
 [build.environment]
   EXPO_PUBLIC_SUPABASE_URL = "https://spabgspqgdpmeufjltua.supabase.co"
