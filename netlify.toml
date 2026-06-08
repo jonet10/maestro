@@ -1,0 +1,13 @@
+[build]
+  base = "mobile"
+  command = "npx expo export -p web"
+  publish = "mobile/dist"
+
+[build.environment]
+  EXPO_PUBLIC_SUPABASE_URL = "https://spabgspqgdpmeufjltua.supabase.co"
+  EXPO_PUBLIC_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNwYWJnc3BxZ2RwbWV1ZmpsdHVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0NzU4NjUsImV4cCI6MjA5NTA1MTg2NX0.Frf7SIdyTsxB4CSUSxvREuoYGoAJB1RrBSluuyUpwdY"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
