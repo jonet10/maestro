@@ -1994,96 +1994,79 @@ export default function App() {
     aHand: Tile[]
   ) => {
     // Check matchStatus to prevent running after a reset or screen change
-    setMatchStatus(currentStatus => {
-      if (currentStatus !== "revealing") return currentStatus;
+    if (matchStatus !== "revealing") return;
 
-      let roundWinner: "user" | "ai" | "draw" = "draw";
-      let scoreGained = 0;
-      let endMessage = "";
+    let roundWinner: "user" | "ai" | "draw" = "draw";
+    let scoreGained = 0;
+    let endMessage = "";
 
-      const userPipsSum = ScoreEngine.calculateRemainingTiles(uHand);
-      const aiPipsSum = ScoreEngine.calculateRemainingTiles(aHand);
+    const userPipsSum = ScoreEngine.calculateRemainingTiles(uHand);
+    const aiPipsSum = ScoreEngine.calculateRemainingTiles(aHand);
 
-      if (result === "user") {
-        roundWinner = "user";
+    if (result === "user") {
+      roundWinner = "user";
+      setRoundsWonUser(prev => prev + 1);
+      const exactPips = aiPipsSum;
+      scoreGained = ScoreEngine.roundToNearestFive(exactPips);
+      setScoreUser(prev => ScoreEngine.addPlayerScore(prev, scoreGained));
+      triggerPointsFlash("user", scoreGained, "user");
+      endMessage = `🎉 Domino! You cleared your hand. You win Round ${round} and score ${scoreGained} points (opp. hand pips: ${exactPips} rounded to nearest 5) from AI's remaining hand.`;
+    } else if (result === "ai") {
+      roundWinner = "ai";
+      setRoundsWonAi(prev => prev + 1);
+      const exactPips = userPipsSum;
+      scoreGained = ScoreEngine.roundToNearestFive(exactPips);
+      setScoreAi(prev => ScoreEngine.addPlayerScore(prev, scoreGained));
+      triggerPointsFlash("ai", scoreGained, "ai");
+      endMessage = `🤖 AI declared Domino! You lose Round ${round}. AI scores ${scoreGained} points (your hand pips: ${exactPips} rounded to nearest 5) from your remaining hand.`;
+    } else {
+      // Bloqué / Blocked: Player with lowest total in their hand wins Round, scores difference!
+      const blockedResult = resolveBlockedGame(uHand, aHand);
+      roundWinner = blockedResult.winner;
+      endMessage = blockedResult.reason;
+
+      if (roundWinner === "user") {
         setRoundsWonUser(prev => prev + 1);
-        const exactPips = aiPipsSum;
-        scoreGained = ScoreEngine.roundToNearestFive(exactPips);
+        const exactDiff = aiPipsSum - userPipsSum;
+        scoreGained = ScoreEngine.roundToNearestFive(exactDiff);
         setScoreUser(prev => ScoreEngine.addPlayerScore(prev, scoreGained));
         triggerPointsFlash("user", scoreGained, "user");
-        endMessage = `🎉 Domino! You cleared your hand. You win Round ${round} and score ${scoreGained} points (opp. hand pips: ${exactPips} rounded to nearest 5) from AI's remaining hand.`;
-      } else if (result === "ai") {
-        roundWinner = "ai";
+        endMessage = `⚠️ Game Blocked! You win Round ${round} and get ${scoreGained} points (difference: ${exactDiff} rounded to nearest 5)!`;
+      } else if (roundWinner === "ai") {
         setRoundsWonAi(prev => prev + 1);
-        const exactPips = userPipsSum;
-        scoreGained = ScoreEngine.roundToNearestFive(exactPips);
+        const exactDiff = userPipsSum - aiPipsSum;
+        scoreGained = ScoreEngine.roundToNearestFive(exactDiff);
         setScoreAi(prev => ScoreEngine.addPlayerScore(prev, scoreGained));
         triggerPointsFlash("ai", scoreGained, "ai");
-        endMessage = `🤖 AI declared Domino! You lose Round ${round}. AI scores ${scoreGained} points (your hand pips: ${exactPips} rounded to nearest 5) from your remaining hand.`;
+        endMessage = `⚠️ Game Blocked! AI wins Round ${round} and gets ${scoreGained} points (difference: ${exactDiff} rounded to nearest 5).`;
       } else {
-        // Bloqué / Blocked: Player with lowest total in their hand wins Round, scores difference!
-        const blockedResult = resolveBlockedGame(uHand, aHand);
-        roundWinner = blockedResult.winner;
-        endMessage = blockedResult.reason;
-
-        if (roundWinner === "user") {
-          setRoundsWonUser(prev => prev + 1);
-          const exactDiff = aiPipsSum - userPipsSum;
-          scoreGained = ScoreEngine.roundToNearestFive(exactDiff);
-          setScoreUser(prev => ScoreEngine.addPlayerScore(prev, scoreGained));
-          triggerPointsFlash("user", scoreGained, "user");
-          endMessage = `⚠️ Game Blocked! You win Round ${round} and get ${scoreGained} points (difference: ${exactDiff} rounded to nearest 5)!`;
-        } else if (roundWinner === "ai") {
-          setRoundsWonAi(prev => prev + 1);
-          const exactDiff = userPipsSum - aiPipsSum;
-          scoreGained = ScoreEngine.roundToNearestFive(exactDiff);
-          setScoreAi(prev => ScoreEngine.addPlayerScore(prev, scoreGained));
-          triggerPointsFlash("ai", scoreGained, "ai");
-          endMessage = `⚠️ Game Blocked! AI wins Round ${round} and gets ${scoreGained} points (difference: ${exactDiff} rounded to nearest 5).`;
-        } else {
-          // Tie-break with no points
-          scoreGained = 0;
-          setCenterToast({ winner: roundWinner, points: 0 });
-          setTimeout(() => setCenterToast(null), 3500);
-        }
+        // Tie-break with no points
+        scoreGained = 0;
+        setCenterToast({ winner: roundWinner, points: 0 });
+        setTimeout(() => setCenterToast(null), 3500);
       }
+    }
 
-      // Start visual progressive score animation if enabled
-      const exactPips = result === "user" ? aiPipsSum : result === "ai" ? userPipsSum : Math.abs(aiPipsSum - userPipsSum);
-      const targetUser = roundWinner === "user" ? ScoreEngine.addPlayerScore(scoreUser, scoreGained) : scoreUser;
-      const targetAi = roundWinner === "ai" ? ScoreEngine.addPlayerScore(scoreAi, scoreGained) : scoreAi;
+    const targetUser = roundWinner === "user" ? ScoreEngine.addPlayerScore(scoreUser, scoreGained) : scoreUser;
+    const targetAi = roundWinner === "ai" ? ScoreEngine.addPlayerScore(scoreAi, scoreGained) : scoreAi;
 
-      if (false) { // Skip progressive score animation per user request
-        setTallyAnimation({
-          active: true,
-          winner: roundWinner,
-          pipCounter: exactPips,
-          roundPoints: 0,
-          phase: "pip_counting",
-          currentVisualScoreUser: scoreUser,
-          currentVisualScoreAi: scoreAi,
-          targetVisualScoreUser: targetUser,
-          targetVisualScoreAi: targetAi
-        });
-      } else {
-        setVisualScoreUser(targetUser);
-        setVisualScoreAi(targetAi);
-      }
+    setVisualScoreUser(targetUser);
+    setVisualScoreAi(targetAi);
 
-      logInternalEvent("score_tally", (roundWinner as string) === "draw" ? "system" : (roundWinner as "user" | "ai"), { scoreGained, result });
-      setWinner(roundWinner);
-      setRevealPhase("scoring");
-      setLogs(prev => [
-        createLog("system", endMessage, "win"),
-        createLog("system", `User Pips Left: ${userPipsSum} | AI Pips Left: ${aiPipsSum}`, "system"),
-        ...prev
-      ]);
-      
-      // Increment Round counter for potential re-deals
-      setRound(prev => prev + 1);
+    logInternalEvent("score_tally", (roundWinner as string) === "draw" ? "system" : (roundWinner as "user" | "ai"), { scoreGained, result });
+    setWinner(roundWinner);
+    setRevealPhase("scoring");
+    setLogs(prev => [
+      createLog("system", endMessage, "win"),
+      createLog("system", `User Pips Left: ${userPipsSum} | AI Pips Left: ${aiPipsSum}`, "system"),
+      ...prev
+    ]);
+    
+    // Increment Round counter for potential re-deals
+    setRound(prev => prev + 1);
 
-      return result === "blocked" ? "blocked" : "domino";
-    });
+    // Set match status at the end
+    setMatchStatus(result === "blocked" ? "blocked" : "domino");
   };
 
   // 8. Tally Scores & Finalize Round End
