@@ -188,18 +188,23 @@ BEGIN
       RAISE EXCEPTION 'Vous ne possédez pas cette tuile.';
     END IF;
 
-    open_ends := public.get_open_ends(placed_tiles);
-    IF NOT public.is_valid_play(tile, side, open_ends) AND jsonb_array_length(placed_tiles) > 0 THEN
-      RAISE EXCEPTION 'Coup invalide.';
+    IF jsonb_array_length(placed_tiles) = 0 THEN
+      side := 'start';
+      rotation := tile;
+    ELSE
+      open_ends := public.get_open_ends(placed_tiles);
+      IF NOT public.is_valid_play(tile, side, open_ends) THEN
+        RAISE EXCEPTION 'Coup invalide.';
+      END IF;
+      rotation := public.calculate_tile_rotation(tile, side, placed_tiles);
     END IF;
 
-    rotation := public.calculate_tile_rotation(tile, side, placed_tiles);
-    
     new_placed_tile := jsonb_build_object(
+      'id', public.generateId(),
       'tile', tile,
-      'playedBy', p_id,
-      'side', side,
-      'rotation', rotation
+      'connectedAs', rotation,
+      'isDouble', (tile->>0)::int = (tile->>1)::int,
+      'playedAt', side
     );
 
     IF jsonb_array_length(placed_tiles) = 0 THEN
