@@ -888,12 +888,12 @@ export function OnlineGame({ roomId, currentUser, onBackToLobby, onNavigateToGam
       {/* Score Progress Bar */}
       <div className="w-full bg-zinc-950 h-1 flex border-b border-white/5 shrink-0">
         <div 
-          className="bg-gradient-to-r from-red-500 to-amber-500 transition-all duration-500" 
+          className="bg-gradient-to-r from-red-500 to-amber-500 transition-all duration-500 shrink-0" 
           style={{ width: `${Math.min(100, (myScore / room.target_score) * 100)}%` }}
         />
         <div className="flex-1 bg-transparent" />
         <div 
-          className="bg-gradient-to-l from-blue-500 to-amber-400 transition-all duration-500" 
+          className="bg-gradient-to-l from-blue-500 to-amber-400 transition-all duration-500 shrink-0" 
           style={{ width: `${Math.min(100, (oppScore / room.target_score) * 100)}%` }}
         />
       </div>
