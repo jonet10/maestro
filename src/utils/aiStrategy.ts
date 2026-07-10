@@ -9,7 +9,7 @@ import { calculateBoardScore, calculateMultipleOfFive } from "./scoreEngine";
 
 export interface PlayOption {
   tile: Tile;
-  side: "left" | "right" | "top" | "bottom";
+  side: "left" | "right" | "top" | "bottom" | "start";
 }
 
 /**
@@ -30,7 +30,7 @@ export function getBestMoveForHand(
   // Find all playable cards in hand across all active 2D ends
   hand.forEach(tile => {
     if (placedTiles.length === 0) {
-      playableOptions.push({ tile, side: "left" }); // Opening first card
+      playableOptions.push({ tile, side: "start" }); // Opening first card
     } else {
       const playability = evaluatePlayability2D(tile, ends2D);
       if (playability.left) playableOptions.push({ tile, side: "left" });
