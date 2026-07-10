@@ -1,0 +1,6 @@
+{
+  "name": "Dominoes Game & Analyzer",
+  "description": "An interactive Dominoes (Double-Six) game simulator and strategic analyzer. Play Draw, Block, or scoring games against smart AI, or use the interactive Analysis Mode to test layouts, check probabilities, and calculate optimal moves.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

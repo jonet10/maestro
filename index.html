@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Dominoes Game &amp; Analyzer Pro</title>
+    <link rel="icon" type="image/png" href="/Maesto.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#0c0c0c" />
+    <link rel="apple-touch-icon" href="/Maesto.png" />
+    <!-- iOS PWA full-screen support -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Maestro" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+
+    <!-- ─── Update banner (injected before React mounts) ────────────────── -->
+    <style>
+      #sw-update-banner {
+        display: none;
+        position: fixed;
+        bottom: 0; left: 0; right: 0;
+        z-index: 99999;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        border-top: 2px solid #f59e0b;
+        padding: 14px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        box-shadow: 0 -4px 24px rgba(0,0,0,0.6);
+        font-family: system-ui, sans-serif;
+      }
+      #sw-update-banner.hidden { display: none !important; }
+      #sw-update-banner .banner-text {
+        color: #f3f4f6;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 1.4;
+      }
+      #sw-update-banner .banner-text span {
+        display: block;
+        font-size: 11px;
+        color: #9ca3af;
+        margin-top: 2px;
+      }
+      #sw-update-banner .banner-btn {
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+        color: #0c0c0c;
+        border: none;
+        border-radius: 10px;
+        padding: 9px 18px;
+        font-weight: 800;
+        font-size: 13px;
+        letter-spacing: 0.05em;
+        cursor: pointer;
+        white-space: nowrap;
+        flex-shrink: 0;
+        box-shadow: 0 2px 12px rgba(245,158,11,0.4);
+      }
+      #sw-update-banner .banner-close {
+        background: transparent;
+        border: none;
+        color: #6b7280;
+        font-size: 20px;
+        cursor: pointer;
+        padding: 4px 8px;
+        flex-shrink: 0;
+      }
+    </style>
+
+    <div id="sw-update-banner" class="hidden">
+      <div class="banner-text">
+        🎯 Nouvelle version disponible !
+        <span>Mettez à jour pour profiter des dernières améliorations.</span>
+      </div>
+      <button class="banner-btn" onclick="swDoUpdate()">Mettre à jour</button>
+      <button class="banner-close" onclick="swDismiss()">✕</button>
+    </div>
+
+    <script>
+      var _swWaitingReg = null;
+
+      function swDoUpdate() {
+        if (_swWaitingReg && _swWaitingReg.waiting) {
+          _swWaitingReg.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+        // After skipWaiting, the SW activates and sends SW_UPDATED → we reload
+      }
+
+      function swDismiss() {
+        document.getElementById('sw-update-banner').classList.add('hidden');
+      }
+
+      function showUpdateBanner() {
+        document.getElementById('sw-update-banner').classList.remove('hidden');
+      }
+
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          const isDev = window.location.hostname === 'localhost' ||
+                        window.location.hostname === '127.0.0.1';
+
+          if (isDev) {
+            // Unregister SW and clear caches in dev mode
+            navigator.serviceWorker.getRegistrations().then((regs) => {
+              regs.forEach((r) => r.unregister());
+            });
+            if ('caches' in window) {
+              caches.keys().then((keys) => keys.forEach((k) => caches.delete(k)));
+            }
+            return;
+          }
+
+          // ── Production: register SW ─────────────────────────────────────
+          navigator.serviceWorker.register('/sw.js')
+            .then((reg) => {
+              console.log('[SW] Registered:', reg.scope);
+
+              // Case 1: A new SW is already waiting (user had the page open during deploy)
+              if (reg.waiting) {
+                _swWaitingReg = reg;
+                showUpdateBanner();
+              }
+
+              // Case 2: A new SW just installed while the page is open
+              reg.addEventListener('updatefound', () => {
+                const newWorker = reg.installing;
+                if (!newWorker) return;
+                newWorker.addEventListener('statechange', () => {
+                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    // New version waiting — show the banner
+                    _swWaitingReg = reg;
+                    showUpdateBanner();
+                  }
+                });
+              });
+            })
+            .catch((err) => console.warn('[SW] Registration failed:', err));
+
+          // Case 3: SW just activated (after SKIP_WAITING) → reload to get fresh files
+          navigator.serviceWorker.addEventListener('controllerchange', () => {
+            window.location.reload();
+          });
+
+          // Case 4: SW posts SW_UPDATED message → reload
+          navigator.serviceWorker.addEventListener('message', (e) => {
+            if (e.data && e.data.type === 'SW_UPDATED') {
+              window.location.reload();
+            }
+          });
+
+          // ── Periodic update check (every 60 min while app is open) ──────
+          setInterval(() => {
+            navigator.serviceWorker.ready.then((reg) => reg.update());
+          }, 60 * 60 * 1000);
+        });
+      }
+    </script>
+  </body>
+</html>

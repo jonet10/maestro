@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+@layer base {
+  html, body, #root {
+    @apply h-[100dvh] w-full overflow-hidden bg-[#0c0c0c] m-0 p-0;
+    overscroll-behavior: none; /* Prevent pull-to-refresh and bounce */
+  }
+}
+
+@keyframes board-impact {
+  0% {
+    transform: translate(-50%, -50%) scale(1.15) rotate(1deg);
+    filter: drop-shadow(0 20px 25px rgba(0, 0, 0, 0.7));
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(0.97) rotate(-0.5deg);
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.00) rotate(0deg);
+    filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.5));
+  }
+}
+
+.animate-board-impact {
+  animation: board-impact 0.35s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+}
