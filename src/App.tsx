@@ -1768,17 +1768,24 @@ export default function App() {
       ...prev
     ]);
 
-    if (isNoPlayDraw) {
-      setNoPlayState(prev => ({
-        ...prev,
-        step: "draw",
-        drawnTile
-      }));
-    } else {
-      // Evaluate if the drawn tile can be played
-      const playability = evaluatePlayability2D(drawnTile, openEnds2D);
-      const isPlayable = playability.left || playability.right || playability.top || playability.bottom || placedTiles.length === 0;
+    const playability = evaluatePlayability2D(drawnTile, openEnds2D);
+    const isPlayable = playability.left || playability.right || playability.top || playability.bottom || placedTiles.length === 0;
 
+    if (isNoPlayDraw) {
+      if (isPlayable) {
+        setNoPlayState(prev => ({
+          ...prev,
+          step: "draw",
+          drawnTile
+        }));
+      } else {
+        setNoPlayState(prev => ({
+          ...prev,
+          step: "await_user_draw",
+          drawnTile: null
+        }));
+      }
+    } else {
       if (isPlayable) {
         setSelectedTile(drawnTile);
       } else {
