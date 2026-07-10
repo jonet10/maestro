@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveBlockedGame } from '../../src/engine/rules/BlockedGameRule';
+import { resolveBlockedGame, checkBlockedStatus } from '../../src/engine/rules/BlockedGameRule';
 import { Tile } from '../../src/types';
 
 describe('BlockedGameRule', () => {
@@ -40,6 +40,33 @@ describe('BlockedGameRule', () => {
     // 6-3 and 5-4 have same sum (9). Max end of 6-3 is 6. Max end of 5-4 is 5. So 6-3 wins.
     expect(result.winner).toBe("user");
     expect(result.reason).toBe("Égalité : Départage par plus grand domino");
+  });
+
+  // Nouveaux tests demandés pour consecutivePasses et blocage de manche
+  it('Deux PASS consécutifs avec boneyard vide => ROUND_BLOCKED', () => {
+    const isBlocked = checkBlockedStatus(0, 2, true, true);
+    expect(isBlocked).toBe(true);
+  });
+
+  it('PASS puis PLAY_TILE => reset du compteur', () => {
+    // Si consecutivePasses est remis à 0 après un play, la vérification avec consecutivePasses=0 renvoie faux
+    const isBlocked = checkBlockedStatus(0, 0, true, true);
+    expect(isBlocked).toBe(false);
+  });
+
+  it('Victoire par blocage classique (boneyard vide et plus aucun coup possible)', () => {
+    const isBlocked = checkBlockedStatus(0, 0, false, false);
+    expect(isBlocked).toBe(true);
+  });
+
+  it('Pas de blocage si un joueur peut encore jouer', () => {
+    const isBlocked = checkBlockedStatus(0, 0, true, false);
+    expect(isBlocked).toBe(false);
+  });
+
+  it('Pas de blocage si le boneyard contient encore des tuiles', () => {
+    const isBlocked = checkBlockedStatus(5, 0, false, false);
+    expect(isBlocked).toBe(false);
   });
 
 });

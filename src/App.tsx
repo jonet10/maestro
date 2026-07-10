@@ -50,7 +50,7 @@ import { GAME_CONFIG } from "./engine/config/GameConfig";
 import { GameStateMachine } from "./engine/core/GameStateMachine";
 import { EventQueue } from "./engine/core/EventQueue";
 import { determineFirstPlayer } from "./engine/rules/FirstPlayerRule";
-import { resolveBlockedGame } from "./engine/rules/BlockedGameRule";
+import { resolveBlockedGame, checkBlockedStatus } from "./engine/rules/BlockedGameRule";
 import { calculateRoundScore } from "./engine/rules/ScoreRule";
 import { MatchManager, MatchState } from "./engine/core/MatchManager";
 // ----------------------
@@ -138,6 +138,7 @@ export default function App() {
 
   const [scoreUser, setScoreUser] = useState<number>(0);
   const [scoreAi, setScoreAi] = useState<number>(0);
+  const [consecutivePasses, setConsecutivePasses] = useState<number>(0);
 
   const [placedTiles, setPlacedTiles] = useState<PlacedTile[]>([]);
   const [userHand, setUserHand] = useState<Tile[]>([]);
@@ -1085,6 +1086,7 @@ export default function App() {
 
   // Start the next round of the match (next manche)
   const handleStartNextManche = () => {
+    const prevRoundWinner = winner;
     setScoreUser(0);
     setScoreAi(0);
     setRound(1);
@@ -1092,7 +1094,15 @@ export default function App() {
     setWinner(null);
     setRevealPhase("none");
     setRevealData(null);
-    setNextRoundStarter(null);
+    
+    let resolvedNextStarter: "user" | "ai" | null = null;
+    if (prevRoundWinner === "user" || prevRoundWinner === "ai") {
+      resolvedNextStarter = prevRoundWinner;
+      setNextRoundStarter(prevRoundWinner);
+    } else {
+      setNextRoundStarter(null);
+    }
+    
     matchEndPendingRef.current = false;
 
     if (dealOption === "auto") {
@@ -1110,7 +1120,7 @@ export default function App() {
       setCurrentScreen("game");
       setMatchStatus("ongoing");
 
-      determineStarterAndInitRound(uHand, aHand, null, 1);
+      determineStarterAndInitRound(uHand, aHand, resolvedNextStarter, 1);
     } else {
       const fullSet = shuffleTiles(generateDoubleSixSet());
       setPlacedTiles([]);
@@ -1403,6 +1413,7 @@ export default function App() {
     const nextPlacedTiles = [...placedTiles, newPlaced];
 
     setPlacedTiles(nextPlacedTiles);
+    setConsecutivePasses(0);
     playTilePlacementSound();
     setSelectedTile(null);
 
@@ -1848,6 +1859,7 @@ export default function App() {
 
     setBoneyard(nextBoneyard);
     setUserHand(nextHand);
+    setConsecutivePasses(0);
     logInternalEvent("draw", "user", { tile: drawnTile });
 
     setLogs(prev => [
@@ -1909,8 +1921,11 @@ export default function App() {
     logInternalEvent("pass", "user");
     setLogs(prev => [createLog("user", "You had no plays and passed your turn.", "pass"), ...prev]);
     
+    const nextPasses = consecutivePasses + 1;
+    setConsecutivePasses(nextPasses);
+    
     // Safe block check first
-    const blocked = checkAndTriggerBlockedRound(placedTiles, userHand, aiHand);
+    const blocked = checkAndTriggerBlockedRound(placedTiles, userHand, aiHand, nextPasses);
     if (!blocked) {
       setCurrentPlayer("ai");
     }
@@ -1979,6 +1994,7 @@ export default function App() {
 
           setBoneyard(nextBoneyard);
           setAiHand(nextAiHand);
+          setConsecutivePasses(0);
           logInternalEvent("draw", "ai", { tile: drawnTile });
           setLogs(prev => [
             createLog("ai", `Tactical AI has no plays and draws a tile.`, "draw"),
@@ -1991,7 +2007,10 @@ export default function App() {
           logInternalEvent("pass", "ai");
           setLogs(prev => [createLog("ai", `Tactical AI has no options and passes turn.`, "pass"), ...prev]);
           
-          const blocked = checkAndTriggerBlockedRound(placedTiles, userHand, aiHand);
+          const nextPasses = consecutivePasses + 1;
+          setConsecutivePasses(nextPasses);
+
+          const blocked = checkAndTriggerBlockedRound(placedTiles, userHand, aiHand, nextPasses);
           if (!blocked) {
             setCurrentPlayer("user");
           }
@@ -2060,7 +2079,8 @@ export default function App() {
       }
 
       // Check Block state across remaining hands, or handover turn
-      const blocked = checkAndTriggerBlockedRound(nextPlacedTiles, userHand, nextAiHand);
+      setConsecutivePasses(0);
+      const blocked = checkAndTriggerBlockedRound(nextPlacedTiles, userHand, nextAiHand, 0);
       if (!blocked) {
         setCurrentPlayer("user");
       }
@@ -2068,7 +2088,7 @@ export default function App() {
     }, 1200);
 
     return () => clearTimeout(timer);
-  }, [currentPlayer, aiHand.length, placedTiles.length]);
+  }, [currentPlayer, aiHand.length, placedTiles.length, consecutivePasses]);
 
 
 
@@ -2216,16 +2236,18 @@ export default function App() {
   const checkAndTriggerBlockedRound = (
     currentBoard: PlacedTile[],
     uHand: Tile[],
-    aHand: Tile[]
+    aHand: Tile[],
+    cPasses: number = consecutivePasses
   ): boolean => {
     if (matchStatus !== "ongoing") return false;
-    if (boneyard.length > 0) return false;
 
     const ends = getOpenEnds2D(currentBoard);
     const uPlayable = hasPlayableTile2D(uHand, ends) || (currentBoard.length === 0 && uHand.length > 0);
     const aPlayable = hasPlayableTile2D(aHand, ends) || (currentBoard.length === 0 && aHand.length > 0);
 
-    if (!uPlayable && !aPlayable) {
+    const blocked = checkBlockedStatus(boneyard.length, cPasses, uPlayable, aPlayable);
+    if (blocked) {
+      setConsecutivePasses(0);
       handleRoundEnd("blocked", currentBoard, uHand, aHand);
       return true;
     }
@@ -2290,6 +2312,7 @@ export default function App() {
     setScoreAi(0);
     setRoundsWonUser(0);
     setRoundsWonAi(0);
+    setConsecutivePasses(0);
     setRoundsHistory([]);
     setMancheWinner(null);
     setMancheCountdown(null);

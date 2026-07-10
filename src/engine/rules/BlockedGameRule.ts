@@ -5,6 +5,20 @@ export function sumHand(hand: Tile[]): number {
   return hand.reduce((acc, t) => acc + t[0] + t[1], 0);
 }
 
+/**
+ * Checks if the round should end as a blocked round.
+ */
+export function checkBlockedStatus(
+  boneyardCount: number,
+  consecutivePasses: number,
+  hasUserPlays: boolean,
+  hasAiPlays: boolean
+): boolean {
+  if (consecutivePasses >= 2) return true;
+  if (boneyardCount === 0 && !hasUserPlays && !hasAiPlays) return true;
+  return false;
+}
+
 export function resolveBlockedGame(
   userHand: Tile[],
   aiHand: Tile[]

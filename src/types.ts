@@ -164,6 +164,7 @@ export interface OnlineGameState {
   rounds_won_opponent?: number;
   target_manches?: number;
   next_round_start_at?: number | null;
+  consecutive_passes?: number;
 }
 
 export interface OnlineRoom {
