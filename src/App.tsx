@@ -145,6 +145,7 @@ export default function App() {
 
   const [currentPlayer, setCurrentPlayer] = useState<"user" | "ai">("user");
   const isProcessingPlayRef = useRef(false); // CRITICAL FIX: Prevent double-click race condition
+  const scoreCommittedRef = useRef<boolean>(false);
   const [selectedTile, setSelectedTile] = useState<Tile | null>(null);
   const [logs, setLogs] = useState<GameLog[]>([]);
   const [showAnalysis, setShowAnalysis] = useState<boolean>(true);
@@ -1993,8 +1994,9 @@ export default function App() {
     uHand: Tile[],
     aHand: Tile[]
   ) => {
-    // Check matchStatus to prevent running after a reset or screen change
-    if (matchStatus !== "revealing") return;
+    // Check ref to prevent double execution
+    if (scoreCommittedRef.current) return;
+    scoreCommittedRef.current = true;
 
     let roundWinner: "user" | "ai" | "draw" = "draw";
     let scoreGained = 0;
@@ -2081,6 +2083,7 @@ export default function App() {
     setSelectedTile(null);
     setMatchStatus("revealing");
     setRevealPhase("revealing");
+    scoreCommittedRef.current = false;
 
     const userPipsSum = ScoreEngine.calculateRemainingTiles(uHand);
     const aiPipsSum = ScoreEngine.calculateRemainingTiles(aHand);
