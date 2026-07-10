@@ -148,7 +148,7 @@ export interface OnlineGameState {
   score_opponent: number;
   round: number;
   matchStatus: "not-started" | "ongoing" | "revealing" | "scoring" | "finished";
-  revealPhase: "none" | "revealing" | "scoring";
+  revealPhase: "none" | "revealing" | "scoring" | "score";
   revealData: {
     result: "domino" | "blocked";
     roundWinner: string;
@@ -160,6 +160,10 @@ export interface OnlineGameState {
     tieBreakExplained?: string;
   } | null;
   nextRoundStarter: string | null;
+  rounds_won_creator?: number;
+  rounds_won_opponent?: number;
+  target_manches?: number;
+  next_round_start_at?: number | null;
 }
 
 export interface OnlineRoom {

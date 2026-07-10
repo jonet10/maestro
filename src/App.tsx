@@ -52,6 +52,7 @@ import { EventQueue } from "./engine/core/EventQueue";
 import { determineFirstPlayer } from "./engine/rules/FirstPlayerRule";
 import { resolveBlockedGame } from "./engine/rules/BlockedGameRule";
 import { calculateRoundScore } from "./engine/rules/ScoreRule";
+import { MatchManager, MatchState } from "./engine/core/MatchManager";
 // ----------------------
 import { GameBoard } from "./components/GameBoard";
 import { HandView } from "./components/HandView";
@@ -188,6 +189,12 @@ export default function App() {
     targetVisualScoreAi: 0
   });
   const [targetScore, setTargetScore] = useState<number>(100);
+  const [targetManches, setTargetManches] = useState<number>(3); // default to Best of 5 (3 wins)
+  const [roundsHistory, setRoundsHistory] = useState<any[]>([]);
+  const [mancheWinner, setMancheWinner] = useState<"user" | "ai" | null>(null);
+  const [mancheCountdown, setMancheCountdown] = useState<number | null>(null);
+  const [matchState, setMatchState] = useState<MatchState | null>(null);
+  const matchManagerRef = useRef<MatchManager | null>(null);
   const [matchHistory, setMatchHistory] = useState<MatchHistoryEntry[]>([]);
   const [matchWinner, setMatchWinner] = useState<"user" | "ai" | null>(null);
   const [matchCountdown, setMatchCountdown] = useState<number | null>(null);
@@ -1076,7 +1083,48 @@ export default function App() {
     localStorage.setItem("maestro_domino_state", JSON.stringify(state));
   }, [scoreUser, scoreAi, userHand, aiHand, boneyard, placedTiles, currentPlayer, matchStatus, round, winner, targetScore, gameType, gameMode, matchWinner, isDealing, nextRoundStarter, roundsWonUser, roundsWonAi]);
 
-  // Match winner detection check
+  // Start the next round of the match (next manche)
+  const handleStartNextManche = () => {
+    setScoreUser(0);
+    setScoreAi(0);
+    setRound(1);
+    setMancheWinner(null);
+    setWinner(null);
+    setRevealPhase("none");
+    setRevealData(null);
+    setNextRoundStarter(null);
+    matchEndPendingRef.current = false;
+
+    if (dealOption === "auto") {
+      const fullSet = shuffleTiles(generateDoubleSixSet());
+      const uHand = fullSet.slice(0, 7);
+      const aHand = fullSet.slice(7, 14);
+      const remainingBoneyard = fullSet.slice(14);
+
+      setPlacedTiles([]);
+      setUserHand(uHand);
+      setAiHand(aHand);
+      setBoneyard(remainingBoneyard);
+      setSelectedTile(null);
+      setIsDealing(false);
+      setCurrentScreen("game");
+      setMatchStatus("ongoing");
+
+      determineStarterAndInitRound(uHand, aHand, null, 1);
+    } else {
+      const fullSet = shuffleTiles(generateDoubleSixSet());
+      setPlacedTiles([]);
+      setUserHand([]);
+      setAiHand([]);
+      setBoneyard(fullSet);
+      setSelectedTile(null);
+      setIsDealing(true);
+      setMatchStatus("ongoing");
+      setCurrentPlayer("user");
+    }
+  };
+
+  // Match winner detection check (Round/Manche end detector)
   useEffect(() => {
     if (matchStatus === "ongoing" || matchStatus === "domino" || matchStatus === "blocked") {
       if (matchEndPendingRef.current) return;
@@ -1084,25 +1132,35 @@ export default function App() {
       const handleVictory = (winnerSide: "user" | "ai") => {
         matchEndPendingRef.current = true;
         
-        // Delay the match winner screen by 3.5 seconds so the round end UI can be seen
+        // Delay the round end pop-up by 3.5 seconds so the round end UI can be seen
         setTimeout(() => {
-          setMatchWinner(winnerSide);
-          setMatchStatus("not-started");
-          const newEntry: MatchHistoryEntry = {
-            id: generateId(),
-            date: new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-            gameType,
-            targetScore,
-            scoreUser, // This uses the value captured in the closure, which is the winning score
-            scoreAi,
-            winner: winnerSide
-          };
-          setMatchHistory(prev => {
-            const nextHistory = [newEntry, ...prev];
-            localStorage.setItem("maestro_domino_history", JSON.stringify(nextHistory));
-            return nextHistory;
-          });
-          saveMatchToSupabase(newEntry, deviceId);
+          if (!matchManagerRef.current) return;
+          
+          matchManagerRef.current.commitRound(winnerSide, { user: scoreUser, ai: scoreAi });
+          const state = matchManagerRef.current.getMatchState();
+
+          if (state.isMatchFinished) {
+            setMatchWinner(winnerSide);
+            setMatchStatus("not-started");
+            const newEntry: MatchHistoryEntry = {
+              id: generateId(),
+              date: new Date().toLocaleDateString() + " " + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+              gameType,
+              targetScore,
+              scoreUser, 
+              scoreAi,
+              winner: winnerSide
+            };
+            setMatchHistory(prev => {
+              const nextHistory = [newEntry, ...prev];
+              localStorage.setItem("maestro_domino_history", JSON.stringify(nextHistory));
+              return nextHistory;
+            });
+            saveMatchToSupabase(newEntry, deviceId);
+          } else {
+            setMancheWinner(winnerSide);
+            setMatchStatus("not-started");
+          }
         }, 3500);
       };
 
@@ -1114,15 +1172,19 @@ export default function App() {
     }
   }, [scoreUser, scoreAi, targetScore, matchStatus, matchWinner, gameType, deviceId]);
 
-  // Automatically start the next round after 4s when a round ends to let players view opponent's remaining hand
+  // Automatically start the next round after 4s when a hand ends (if target score not reached)
   useEffect(() => {
     if (winner && !matchWinner && !tallyAnimation.active) {
+      // Check if this round ending also triggers the end of a manche
+      const isMancheEnded = ScoreEngine.checkVictory(scoreUser, targetScore) || ScoreEngine.checkVictory(scoreAi, targetScore);
+      if (isMancheEnded) return;
+
       const timer = setTimeout(() => {
         ScoreEngine.startNextRound(handleStartGame);
       }, 4000);
       return () => clearTimeout(timer);
     }
-  }, [winner, matchWinner, tallyAnimation.active]);
+  }, [winner, matchWinner, tallyAnimation.active, scoreUser, scoreAi, targetScore]);
 
   // Match countdown timer (Solo mode)
   useEffect(() => {
@@ -1147,6 +1209,30 @@ export default function App() {
 
     return () => clearTimeout(timer);
   }, [matchCountdown]);
+
+  // Manche countdown timer (Solo mode)
+  useEffect(() => {
+    if (mancheWinner && !matchWinner) {
+      setMancheCountdown(10);
+    } else {
+      setMancheCountdown(null);
+    }
+  }, [mancheWinner, matchWinner]);
+
+  useEffect(() => {
+    if (mancheCountdown === null) return;
+    if (mancheCountdown <= 0) {
+      handleStartNextManche();
+      setMancheCountdown(null);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setMancheCountdown(prev => (prev !== null ? prev - 1 : null));
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [mancheCountdown]);
 
   // Trigger fireworks confetti when the user wins the match
   useEffect(() => {
@@ -2153,6 +2239,11 @@ export default function App() {
     setScoreAi(0);
     setRoundsWonUser(0);
     setRoundsWonAi(0);
+    setRoundsHistory([]);
+    setMancheWinner(null);
+    setMancheCountdown(null);
+    setMatchState(null);
+    matchManagerRef.current = null;
     setRound(1);
     setMatchStatus("not-started");
     setWinner(null);
@@ -2169,10 +2260,39 @@ export default function App() {
 
   // Start a brand new match with reset scores
   const handleStartNewGame = () => {
+    const players = [
+      { id: "user", name: "Jean François" },
+      { id: "ai", name: "Bot Op" }
+    ];
+    const settings = {
+      targetManches,
+      targetScorePerManche: targetScore,
+      gameMode
+    };
+    
+    const manager = new MatchManager(players, settings);
+    matchManagerRef.current = manager;
+    setMatchState(manager.getMatchState());
+
+    // Bind event subscriptions
+    manager.subscribe("ROUND_COMPLETED", ({ roundResult, matchState: nextState }) => {
+      setMatchState(nextState);
+      setRoundsWonUser(nextState.roundsWon["user"] || 0);
+      setRoundsWonAi(nextState.roundsWon["ai"] || 0);
+      setRoundsHistory(nextState.roundsHistory);
+    });
+
+    manager.subscribe("MATCH_COMPLETED", (finalState) => {
+      setMatchState(finalState);
+    });
+
     setScoreUser(0);
     setScoreAi(0);
     setRoundsWonUser(0);
     setRoundsWonAi(0);
+    setRoundsHistory([]);
+    setMancheWinner(null);
+    setMancheCountdown(null);
     setRound(1);
     setMatchWinner(null);
     setWinner(null);
@@ -2579,15 +2699,16 @@ export default function App() {
                 )}
               </AnimatePresence>
 
-              {/* Match Winner Popup Overlay */}
-              {matchWinner && (() => {
-                const isUserWinner = matchWinner === "user";
-                const scoreDiff = Math.abs(scoreUser - scoreAi);
+              {/* Match or Manche Winner Popup Overlay */}
+              {(matchWinner || mancheWinner) && (() => {
+                const isMatchEnd = matchWinner !== null;
+                const activeWinner = matchWinner || mancheWinner;
+                const isUserWinner = activeWinner === "user";
                 const username = gameType === "team" ? "Équipe Rouge" : (userProfile?.username || "maestro10");
                 const opponentName = gameType === "team" ? "Équipe Bleue" : "bot_op";
 
-                // Share message
-                const shareMessage = `🏆 Maestro Domino : ${isUserWinner ? "Victoire !" : "Défaite"} 🀰\n🎯 Score : ${scoreUser} - ${scoreAi}\nDifférence : ${scoreDiff} pts ! Rejoignez-moi sur maestro-sooty.vercel.app`;
+                // Share message (only for Match winner)
+                const shareMessage = `🏆 Maestro Domino : ${isUserWinner ? "Victoire !" : "Défaite"} 🀰\n🎯 Score du Match : ${roundsWonUser} - ${roundsWonAi}\nRejoignez-moi sur maestro-sooty.vercel.app`;
 
                 const handleShareClick = async () => {
                   if (navigator.share) {
@@ -2601,7 +2722,6 @@ export default function App() {
                       console.error("Error sharing:", err);
                     }
                   } else {
-                    // Fallback: Copy to clipboard
                     try {
                       await navigator.clipboard.writeText(shareMessage);
                       alert("Score copié dans le presse-papiers ! 📋");
@@ -2635,7 +2755,13 @@ export default function App() {
                           >
                             {/* Score summary text */}
                             <span className="text-stone-700 font-sans font-extrabold text-[10px] uppercase tracking-wider mb-4 mt-2">
-                              {isUserWinner ? `Vous avez gagné de ${scoreDiff}` : `Vous avez perdu de ${scoreDiff}`}
+                              {isMatchEnd ? (
+                                isUserWinner 
+                                  ? `Vous remportez le Match ${roundsWonUser} manches à ${roundsWonAi}`
+                                  : `Vous perdez le Match ${roundsWonAi} manches à ${roundsWonUser}`
+                              ) : (
+                                `Manche terminée — Score : ${scoreUser} - ${scoreAi}`
+                              )}
                             </span>
 
                             {/* Matchup section */}
@@ -2654,7 +2780,7 @@ export default function App() {
                                   {username}
                                 </span>
                                 <span className="text-[#d95d1e] text-3xl font-sans font-black tracking-tighter mt-1">
-                                  {scoreUser}
+                                  {isMatchEnd ? `${roundsWonUser} m.` : `${scoreUser} pts`}
                                 </span>
                               </div>
 
@@ -2679,18 +2805,24 @@ export default function App() {
                                   {opponentName}
                                 </span>
                                 <span className="text-stone-800 text-3xl font-sans font-black tracking-tighter mt-1">
-                                  {scoreAi}
+                                  {isMatchEnd ? `${roundsWonAi} m.` : `${scoreAi} pts`}
                                 </span>
                               </div>
                             </div>
 
                             {/* Share button nested inside the V shape of the shield */}
-                            <button 
-                              onClick={handleShareClick}
-                              className="w-9 h-9 rounded-full bg-stone-700 hover:bg-stone-600 flex items-center justify-center text-white cursor-pointer active:scale-95 transition-all shadow-md mt-4 relative z-20"
-                            >
-                              <Share2 size={14} />
-                            </button>
+                            {isMatchEnd ? (
+                              <button 
+                                onClick={handleShareClick}
+                                className="w-9 h-9 rounded-full bg-stone-700 hover:bg-stone-600 flex items-center justify-center text-white cursor-pointer active:scale-95 transition-all shadow-md mt-4 relative z-20"
+                              >
+                                <Share2 size={14} />
+                              </button>
+                            ) : (
+                              <div className="text-[10px] text-stone-500 font-bold uppercase tracking-wider mt-4">
+                                Match : {roundsWonUser} - {roundsWonAi}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -2710,16 +2842,29 @@ export default function App() {
                             WebkitTextStroke: "0.5px rgba(255,255,255,0.15)"
                           }}
                         >
-                          {isUserWinner ? "VICTORY!" : "DEFEAT"}
+                          {isMatchEnd ? (isUserWinner ? "VICTOIRE !" : "DÉFAITE") : "MANCHE GAGNÉE !"}
                         </span>
                       </div>
 
                       {/* Action Buttons Section */}
                       <div className="flex flex-col items-center mt-5 w-full space-y-3.5">
-                        {matchCountdown !== null ? (
+                        {(!isMatchEnd && mancheCountdown !== null) ? (
                           <div className="flex flex-col items-center gap-2">
                             <div className="text-center font-bold text-[10px] text-amber-400 uppercase tracking-[0.25em] animate-pulse">
-                              Nouvelle partie dans
+                              Manche suivante dans
+                              <div className="text-3xl font-black font-mono mt-1 text-white">{mancheCountdown}</div>
+                            </div>
+                            <button
+                              onClick={handleResetScores}
+                              className="mt-2.5 flex items-center justify-center gap-1.5 py-2.5 px-6 bg-stone-600 hover:bg-stone-500 text-white font-bold tracking-widest uppercase rounded-xl border-b-4 border-stone-850 active:scale-95 active:border-b-0 transition-all cursor-pointer shadow-md text-[9px]"
+                            >
+                              <X size={12} /> Quitter
+                            </button>
+                          </div>
+                        ) : (isMatchEnd && matchCountdown !== null) ? (
+                          <div className="flex flex-col items-center gap-2">
+                            <div className="text-center font-bold text-[10px] text-amber-400 uppercase tracking-[0.25em] animate-pulse">
+                              Nouveau match dans
                               <div className="text-3xl font-black font-mono mt-1 text-white">{matchCountdown}</div>
                             </div>
                             <button
@@ -3072,6 +3217,29 @@ export default function App() {
                       {adminConfig.defaultTarget} pts
                     </div>
                   )}
+                </div>
+
+                {/* Match Target Selection (Best of 1, 3, 5, 7) */}
+                <div className="space-y-2 pt-2 border-t border-gray-800/35">
+                  <label className="text-[10px] text-gray-500 uppercase font-mono font-bold tracking-wider">Format du Match</label>
+                  <div className="grid grid-cols-4 gap-1 bg-[#181818] p-1 rounded-xl">
+                    {([1, 2, 3, 4] as number[]).map(wins => {
+                      const labels: Record<number, string> = { 1: "BO1", 2: "BO3", 3: "BO5", 4: "BO7" };
+                      return (
+                        <button
+                          key={wins}
+                          onClick={() => setTargetManches(wins)}
+                          className={`py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                            targetManches === wins 
+                              ? "bg-gray-800 text-amber-500 font-bold shadow-sm" 
+                              : "text-gray-400 hover:text-gray-250 hover:bg-gray-800/10"
+                          }`}
+                        >
+                          {labels[wins]}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* Dealing Method Selection (Feature 1) */}

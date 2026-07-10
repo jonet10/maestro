@@ -64,55 +64,9 @@ export function OnlineGame({ roomId, currentUser, onBackToLobby, onNavigateToGam
   const [roundCountdown, setRoundCountdown] = useState<number | null>(null);
   const [matchCountdown, setMatchCountdown] = useState<number | null>(null);
 
-  // Match round wins state
-  const [roundsWonCreator, setRoundsWonCreator] = useState<number>(() => {
-    return Number(localStorage.getItem(`rounds_won_${roomId}_creator`) || "0");
-  });
-  const [roundsWonOpponent, setRoundsWonOpponent] = useState<number>(() => {
-    return Number(localStorage.getItem(`rounds_won_${roomId}_opponent`) || "0");
-  });
-
-  useEffect(() => {
-    if (!room) return;
-
-    const creatorId = room.creator_id;
-    const opponentId = room.opponent_id;
-    const currentRound = room.game_state.round;
-    const revealData = room.game_state.revealData;
-    const scoreCreator = room.game_state.score_creator;
-    const scoreOpponent = room.game_state.score_opponent;
-
-    // 1. Reset check: if scores and round are reset to initial state, reset round wins
-    if (currentRound === 1 && scoreCreator === 0 && scoreOpponent === 0) {
-      setRoundsWonCreator(0);
-      setRoundsWonOpponent(0);
-      localStorage.setItem(`rounds_won_${roomId}_creator`, "0");
-      localStorage.setItem(`rounds_won_${roomId}_opponent`, "0");
-      localStorage.setItem(`last_counted_round_${roomId}`, "0");
-      return;
-    }
-
-    // 2. Count new round wins if revealData is present and indicates a winner
-    if (revealData && revealData.roundWinner) {
-      const lastCounted = Number(localStorage.getItem(`last_counted_round_${roomId}`) || "0");
-      if (currentRound > lastCounted) {
-        let nextCreatorWins = roundsWonCreator;
-        let nextOpponentWins = roundsWonOpponent;
-
-        if (revealData.roundWinner === creatorId) {
-          nextCreatorWins += 1;
-          setRoundsWonCreator(nextCreatorWins);
-          localStorage.setItem(`rounds_won_${roomId}_creator`, String(nextCreatorWins));
-        } else if (revealData.roundWinner === opponentId) {
-          nextOpponentWins += 1;
-          setRoundsWonOpponent(nextOpponentWins);
-          localStorage.setItem(`rounds_won_${roomId}_opponent`, String(nextOpponentWins));
-        }
-
-        localStorage.setItem(`last_counted_round_${roomId}`, String(currentRound));
-      }
-    }
-  }, [room, roomId, roundsWonCreator, roundsWonOpponent]);
+  // Match round wins state derived from synced Supabase room state
+  const roundsWonCreator = room?.game_state?.rounds_won_creator || 0;
+  const roundsWonOpponent = room?.game_state?.rounds_won_opponent || 0;
 
   // Drag and drop states
   const [draggedTile, setDraggedTile] = useState<Tile | null>(null);
@@ -712,31 +666,30 @@ export function OnlineGame({ roomId, currentUser, onBackToLobby, onNavigateToGam
   const revealData = room?.game_state?.revealData;
   const revealPhase = room?.game_state?.revealPhase || "none";
 
-  // Handle round and match automatic countdowns
+  // Synchronized round countdown based on database timestamp next_round_start_at
   useEffect(() => {
-    if (revealPhase === "scoring" && room?.status === "active") {
-      setRoundCountdown(10);
+    const nextStartAt = room?.game_state?.next_round_start_at;
+    if (nextStartAt && room?.status === "active") {
+      const updateCountdown = () => {
+        const now = Date.now();
+        const diff = Math.ceil((nextStartAt - now) / 1000);
+        if (diff <= 0) {
+          setRoundCountdown(0);
+          if (isCreator) {
+            handleStartRound();
+          }
+        } else {
+          setRoundCountdown(diff);
+        }
+      };
+
+      updateCountdown();
+      const interval = setInterval(updateCountdown, 250);
+      return () => clearInterval(interval);
     } else {
       setRoundCountdown(null);
     }
-  }, [revealPhase, room?.status]);
-
-  useEffect(() => {
-    if (roundCountdown === null) return;
-    if (roundCountdown <= 0) {
-      if (isCreator && room?.status === "active") {
-        handleStartRound();
-      }
-      setRoundCountdown(null);
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setRoundCountdown(prev => (prev !== null ? prev - 1 : null));
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, [roundCountdown, isCreator, room?.status]);
+  }, [room?.game_state?.next_round_start_at, room?.status, isCreator]);
 
   useEffect(() => {
     if (room?.status === "finished") {
@@ -931,7 +884,7 @@ export function OnlineGame({ roomId, currentUser, onBackToLobby, onNavigateToGam
         {/* Opponent Hand (Top Center) */}
         <OpponentHand 
           count={oppHandCount} 
-          revealedTiles={(room.status === "finished" || revealPhase === "revealing" || revealPhase === "scoring") && revealData ? (isCreator ? revealData.opponentHand : revealData.creatorHand) : undefined}
+          revealedTiles={(room.status === "finished" || revealPhase === "revealing" || revealPhase === "scoring" || revealPhase === "score") && revealData ? (isCreator ? revealData.opponentHand : revealData.creatorHand) : undefined}
         />
 
         {/* Waiting for Opponent Lobby State overlay */}
@@ -1128,7 +1081,7 @@ export function OnlineGame({ roomId, currentUser, onBackToLobby, onNavigateToGam
         })()}
 
         {/* Round Score display overlay (Scoring Phase) */}
-        {revealPhase === "scoring" && revealData && (() => {
+        {(revealPhase === "scoring" || revealPhase === "score") && revealData && (() => {
           const isBlocked = revealData.result === "blocked";
           const roundWinnerId = revealData.roundWinner;
           const isMeWin = roundWinnerId === currentUser.id;
