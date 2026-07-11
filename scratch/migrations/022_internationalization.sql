@@ -86,3 +86,26 @@ VALUES (
 )
 ON CONFLICT (key) DO UPDATE
 SET value = EXCLUDED.value;
+
+-- G. Configuration RLS pour la table system_settings
+ALTER TABLE public.system_settings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "System settings read policy" ON public.system_settings;
+CREATE POLICY "System settings read policy" ON public.system_settings
+  FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "System settings write policy" ON public.system_settings;
+CREATE POLICY "System settings write policy" ON public.system_settings
+  FOR ALL TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role IN ('admin', 'super-admin')
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE id = auth.uid() AND role IN ('admin', 'super-admin')
+    )
+  );
