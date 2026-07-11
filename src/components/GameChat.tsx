@@ -108,12 +108,17 @@ export const GameChat: React.FC<GameChatProps> = ({ roomId, currentUserId }) => 
       {/* Chat Window */}
       <AnimatePresence>
         {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="absolute bottom-16 right-0 w-80 h-96 bg-stone-900/95 backdrop-blur-md border border-stone-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-          >
+          <>
+            <div 
+              className="fixed inset-0 z-35 cursor-default" 
+              onClick={() => setIsOpen(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.95 }}
+              className="absolute bottom-16 right-0 w-80 h-96 bg-stone-900/95 backdrop-blur-md border border-stone-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden z-40"
+            >
             {/* Header */}
             <div className="p-3 bg-stone-950 border-b border-stone-800 flex justify-between items-center">
               <span className="text-sm font-bold text-amber-500 flex items-center gap-2">
@@ -185,6 +190,7 @@ export const GameChat: React.FC<GameChatProps> = ({ roomId, currentUserId }) => 
               </button>
             </form>
           </motion.div>
+          </>
         )}
       </AnimatePresence>
     </div>
