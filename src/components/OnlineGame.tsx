@@ -722,6 +722,15 @@ export function OnlineGame({ roomId, currentUser, onBackToLobby, onNavigateToGam
       setRoundCountdown(null);
     }
   }, [room?.game_state?.next_round_start_at, room?.status, isCreator]);
+  
+  // Auto-start round if matchStatus is 'not-started'
+  useEffect(() => {
+    if (room && room.status === "active" && (room.game_state as any)?.matchStatus === "not-started") {
+      if (isCreator) {
+        handleStartRound();
+      }
+    }
+  }, [room?.status, (room?.game_state as any)?.matchStatus, isCreator]);
 
   // Series manager / MatchSeriesEngine layer for Online play (Fixed mode finalization)
   useEffect(() => {
@@ -1028,7 +1037,13 @@ export function OnlineGame({ roomId, currentUser, onBackToLobby, onNavigateToGam
           </div>
         )}
 
-        {/* Removed Start Game Round Overlay */}
+        {/* Waiting for round to start overlay */}
+        {room.status === "active" && (room.game_state as any)?.matchStatus === "not-started" && (
+          <div className="absolute inset-0 bg-black/85 z-40 flex flex-col justify-center items-center p-6 text-center space-y-4">
+            <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-sm font-bold text-amber-400 font-mono tracking-wider animate-pulse">DISTRIBUTION DES DOMINOS EN COURS...</p>
+          </div>
+        )}
         
         {/* Rescue button for corrupted games */}
         {isGameCorrupted && (
