@@ -118,8 +118,9 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ profile, onC
       if (data) {
         onComplete(data as Profile);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error saving onboarding data:", err);
+      alert("Erreur d'enregistrement : " + (err.message || "") + "\n\n⚠️ Veuillez vous assurer d'avoir exécuté la migration '022_internationalization.sql' dans l'éditeur SQL de votre Dashboard Supabase pour ajouter les nouvelles colonnes (country_code, preferred_language, timezone, etc.) à la table des profils.");
       setIsSaving(false);
       // Fallback to unblock the user locally in case of RLS or network issue
       onComplete({ 
