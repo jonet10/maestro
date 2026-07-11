@@ -99,11 +99,12 @@ export function OnlineGame({ roomId, currentUser, onBackToLobby, onNavigateToGam
 
   useEffect(() => {
     let timer: any;
+    const roomPlacedTiles = room?.game_state?.placedTiles || [];
     const isPossiblyCorrupted = 
       room?.status === "active" && 
       handFetched && 
       hand.length === 0 && 
-      placedTiles.length === 0 &&
+      roomPlacedTiles.length === 0 &&
       room?.game_state?.matchStatus === "started";
 
     if (isPossiblyCorrupted) {
@@ -117,7 +118,7 @@ export function OnlineGame({ roomId, currentUser, onBackToLobby, onNavigateToGam
     return () => {
       if (timer) clearTimeout(timer);
     };
-  }, [room?.status, handFetched, hand.length, placedTiles.length, room?.game_state?.matchStatus]);
+  }, [room?.status, handFetched, hand.length, room?.game_state?.placedTiles, room?.game_state?.matchStatus]);
 
   const fetchGameData = async () => {
     if (!supabase) return;
