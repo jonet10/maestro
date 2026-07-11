@@ -23,6 +23,12 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ currentU
   };
 
   useEffect(() => {
+    if ('Notification' in window && window.Notification.permission === 'default') {
+      window.Notification.requestPermission();
+    }
+  }, []);
+
+  useEffect(() => {
     loadNotifications();
 
     if (!supabase) return;
@@ -39,7 +45,39 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ currentU
           filter: `user_id=eq.${currentUser.id}`
         },
         (payload) => {
-          setNotifications(prev => [payload.new as Notification, ...prev]);
+          const newNotif = payload.new as Notification;
+          setNotifications(prev => [newNotif, ...prev]);
+
+          // Trigger native browser push notification
+          if ('Notification' in window && window.Notification.permission === 'granted') {
+            let title = 'Maestro Domino';
+            let body = 'Nouvelle notification';
+            
+            if (newNotif.type === 'invite') {
+              title = 'Invitation de jeu !';
+              body = newNotif.payload?.message || "Je t'invite à rejoindre ma partie.";
+            } else if (newNotif.type === 'friend_request') {
+              title = 'Demande d\'ami';
+              body = 'Un joueur souhaite vous ajouter en ami.';
+            } else if (newNotif.type === 'friend_accept') {
+              title = 'Demande d\'ami acceptée';
+              body = 'Votre demande d\'ami a été acceptée.';
+            }
+
+            if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+              navigator.serviceWorker.ready.then((registration) => {
+                registration.showNotification(title, {
+                  body: body,
+                  icon: '/Maesto.png',
+                  vibrate: [200, 100, 200],
+                  tag: newNotif.id,
+                  data: newNotif.payload
+                });
+              });
+            } else {
+              new window.Notification(title, { body: body, icon: '/Maesto.png' });
+            }
+          }
         }
       )
       .subscribe();

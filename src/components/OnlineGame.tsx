@@ -1044,7 +1044,16 @@ export function OnlineGame({ roomId, currentUser, onBackToLobby, onNavigateToGam
             <p className="text-sm font-bold text-amber-400 font-mono tracking-wider animate-pulse">DISTRIBUTION DES DOMINOS EN COURS...</p>
           </div>
         )}
-        
+        {/* Waiting for opponent presence overlay */}
+        {room.status === "active" && (room.game_state as any)?.matchStatus === "ongoing" && !isOpponentOnline && (
+          <div className="absolute inset-0 bg-black/85 z-40 flex flex-col justify-center items-center p-6 text-center space-y-4">
+            <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-sm font-bold text-amber-400 font-mono tracking-wider animate-pulse">EN ATTENTE DE L'ADVERSAIRE...</p>
+            <p className="text-xs text-gray-400 max-w-[260px] leading-relaxed">
+              La partie reprendra dès que votre adversaire se sera reconnecté ou aura rejoint le salon.
+            </p>
+          </div>
+        )}
         {/* Rescue button for corrupted games */}
         {isGameCorrupted && (
           <div className="absolute inset-0 z-50 flex flex-col justify-center items-center bg-black/80 p-6">
