@@ -54,7 +54,7 @@ export function AdminDashboard({ currentUser, onBack }: AdminDashboardProps) {
   // Search/Filter states
   const [playerSearch, setPlayerSearch] = useState("");
   const [newTName, setNewTName] = useState("");
-  const [newTSize, setNewTSize] = useState<4 | 8 | 16 | 32>(8);
+  const [newTSize, setNewTSize] = useState<2 | 4 | 8 | 16 | 32>(8);
   const [newTScore, setNewTScore] = useState<50 | 100 | 150 | 200>(100);
 
   // Stats / Overview counts
@@ -624,6 +624,7 @@ export function AdminDashboard({ currentUser, onBack }: AdminDashboardProps) {
                           onChange={(e) => setNewTSize(Number(e.target.value) as any)}
                           className="w-full bg-[#121212] border border-gray-800 rounded-xl py-2.5 px-3 text-xs text-white focus:outline-none focus:border-red-500/60 transition-all font-mono"
                         >
+                          <option value={2}>2 Joueurs</option>
                           <option value={4}>4 Joueurs</option>
                           <option value={8}>8 Joueurs</option>
                           <option value={16}>16 Joueurs</option>
