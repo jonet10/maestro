@@ -182,26 +182,26 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ profile, onC
             <div className="space-y-4 mb-6">
               <div className="space-y-1">
                 <label className="text-[10px] text-gray-500 uppercase font-mono font-bold tracking-wider block">Choix du Pays</label>
-                <div className="grid grid-cols-2 gap-2">
+                <select
+                  value={countryCode}
+                  onChange={(e) => {
+                    const code = e.target.value;
+                    setCountryCode(code);
+                    const found = COUNTRIES.find(c => c.code === code);
+                    if (found) {
+                      setPreferredLanguage(found.defaultLang as any);
+                      setTimezone(found.defaultTimezone);
+                    }
+                  }}
+                  className="w-full bg-[#121212] border border-gray-805 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-500/60 transition-all font-mono"
+                >
+                  <option value="">Sélectionner votre pays...</option>
                   {COUNTRIES.map((c) => (
-                    <button
-                      key={c.code}
-                      onClick={() => {
-                        setCountryCode(c.code);
-                        setPreferredLanguage(c.defaultLang as any);
-                        setTimezone(c.defaultTimezone);
-                      }}
-                      className={`p-2.5 rounded-xl border text-left flex items-center gap-2 transition-all cursor-pointer ${
-                        countryCode === c.code
-                          ? "bg-amber-500/10 border-amber-500 text-white"
-                          : "bg-[#121212] border-gray-850 text-gray-400 hover:border-gray-700"
-                      }`}
-                    >
-                      <span className="text-lg">{c.flag}</span>
-                      <span className="text-[11px] font-bold truncate">{c.name}</span>
-                    </button>
+                    <option key={c.code} value={c.code}>
+                      {c.flag} {c.name} ({c.code})
+                    </option>
                   ))}
-                </div>
+                </select>
               </div>
 
               <div className="space-y-1">
