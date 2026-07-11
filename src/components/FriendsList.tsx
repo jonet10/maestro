@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Users, UserPlus, UserX, Check, X, Clock, Gamepad2 } from 'lucide-react';
 import { Profile } from '../types';
