@@ -65,8 +65,21 @@ export function checkAvailabilityNow(availabilities: DbAvailability[]): { availa
     const next = sorted[0];
     const daysFr = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
     const dayLabel = daysFr[next.day_of_week];
-    const startHour = next.start_time.substring(0, 5).replace(":", "h");
-    const endHour = next.end_time.substring(0, 5).replace(":", "h");
+    const startHour = next.start_time.substring(0, 5);
+    
+    // Check if the user has this start_time for all 7 days
+    const isEveryday = [0, 1, 2, 3, 4, 5, 6].every(d =>
+      availabilities.some(a => a.start_time === next.start_time && a.day_of_week === d)
+    );
+
+    if (isEveryday) {
+      return {
+        available: false,
+        text: `Disponible à ${startHour}`
+      };
+    }
+
+    const endHour = next.end_time.substring(0, 5);
     return {
       available: false,
       text: `Dispo ${dayLabel} ${startHour} - ${endHour}`

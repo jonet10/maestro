@@ -10,23 +10,13 @@ interface OnboardingWizardProps {
   onComplete: (updatedProfile: Profile) => void;
 }
 
-const DAYS_OF_WEEK = [
-  { id: 'monday', label: 'Lundi' },
-  { id: 'tuesday', label: 'Mardi' },
-  { id: 'wednesday', label: 'Mercredi' },
-  { id: 'thursday', label: 'Jeudi' },
-  { id: 'friday', label: 'Vendredi' },
-  { id: 'saturday', label: 'Samedi' },
-  { id: 'sunday', label: 'Dimanche' },
-];
-
-const TIME_SLOTS = [
-  { id: '06-09', label: '06h - 09h' },
-  { id: '09-12', label: '09h - 12h' },
-  { id: '12-15', label: '12h - 15h' },
-  { id: '15-18', label: '15h - 18h' },
-  { id: '18-21', label: '18h - 21h' },
-  { id: '21-00', label: '21h - 00h' },
+const HOURS_24 = [
+  "06:00", "07:00", "08:00", "09:00",
+  "10:00", "11:00", "12:00", "13:00",
+  "14:00", "15:00", "16:00", "17:00",
+  "18:00", "19:00", "20:00", "21:00",
+  "22:00", "23:00", "00:00", "01:00",
+  "02:00", "03:00", "04:00", "05:00"
 ];
 
 export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ profile, onComplete }) => {
@@ -35,13 +25,12 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ profile, onC
   const [preferredLanguage, setPreferredLanguage] = useState<Language>((profile.preferred_language as Language) || "fr");
   const [timezone, setTimezone] = useState(profile.timezone || "");
   const [acceptGameInvites, setAcceptGameInvites] = useState(profile.accept_game_invites !== false);
-  const [selectedDays, setSelectedDays] = useState<string[]>([]);
-  const [selectedTimeSlots, setSelectedTimeSlots] = useState<string[]>([]);
+  const [selectedHours, setSelectedHours] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
-  const toggleDay = (dayId: string) => {
-    setSelectedDays(prev => 
-      prev.includes(dayId) ? prev.filter(d => d !== dayId) : [...prev, dayId]
+  const toggleHour = (hour: string) => {
+    setSelectedHours(prev => 
+      prev.includes(hour) ? prev.filter(h => h !== hour) : [...prev, hour]
     );
   };
 
@@ -61,8 +50,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ profile, onC
       const finalTimezone = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
       const availability = {
         timezone: finalTimezone,
-        days: selectedDays,
-        timeSlots: selectedTimeSlots
+        hours: selectedHours
       };
 
       // 1. Update Profile in DB
@@ -82,14 +70,14 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ profile, onC
 
       if (error) throw error;
 
-      // 2. Insert availability slots to database table user_availabilities
-      const availabilitiesToInsert = selectedDays.flatMap(day => {
-        const dayNum = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"].indexOf(day);
-        return selectedTimeSlots.map(slot => {
-          const [startH, endH] = slot.split("-");
+      // 2. Insert availability slots to database table user_availabilities for all 7 days of the week
+      const availabilitiesToInsert = [0, 1, 2, 3, 4, 5, 6].flatMap(dayNum => {
+        return selectedHours.map(hour => {
+          const startH = hour.split(":")[0];
+          const endH = String((Number(startH) + 1) % 24).padStart(2, "0");
           return {
             user_id: profile.id,
-            day_of_week: dayNum !== -1 ? dayNum : 1,
+            day_of_week: dayNum,
             start_time: `${startH}:00:00`,
             end_time: `${endH}:00:00`,
             timezone: finalTimezone,
@@ -132,8 +120,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ profile, onC
         onboarding_completed: true, 
         availability: {
           timezone: timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
-          days: selectedDays,
-          timeSlots: selectedTimeSlots
+          hours: selectedHours
         }
       });
     }
@@ -274,44 +261,27 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ profile, onC
             exit={{ opacity: 0, y: -20 }}
             className="bg-[#0c0c0c] border border-gray-800 p-6 rounded-2xl shadow-2xl max-w-md w-full relative overflow-hidden"
           >
-            <h3 className="text-xl font-bold text-amber-500 mb-1 font-serif text-center">Vos disponibilités</h3>
-            <p className="text-gray-400 text-xs text-center mb-6">Sélectionnez vos jours et horaires de jeu habituels.</p>
+            <h3 className="text-xl font-bold text-amber-500 mb-1 font-serif text-center font-display">Vos disponibilités</h3>
+            <p className="text-gray-400 text-xs text-center mb-6">Sélectionnez vos heures de jeu habituelles.</p>
             
-            <div className="mb-6">
-              <h4 className="text-stone-200 text-sm font-semibold mb-3">Jours de jeu :</h4>
-              <div className="flex flex-wrap gap-2">
-                {DAYS_OF_WEEK.map(day => (
-                  <button
-                    key={day.id}
-                    onClick={() => toggleDay(day.id)}
-                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors border cursor-pointer ${
-                      selectedDays.includes(day.id) 
-                        ? 'bg-amber-600 border-amber-500 text-stone-900' 
-                        : 'bg-[#121212] border-gray-850 text-gray-400 hover:border-amber-900'
-                    }`}
-                  >
-                    {day.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="mb-8">
-              <h4 className="text-stone-200 text-sm font-semibold mb-3">Plages horaires :</h4>
-              <div className="grid grid-cols-2 gap-2">
-                {TIME_SLOTS.map(slot => (
-                  <button
-                    key={slot.id}
-                    onClick={() => toggleTimeSlot(slot.id)}
-                    className={`px-3 py-2 rounded-md text-sm transition-colors border text-center cursor-pointer ${
-                      selectedTimeSlots.includes(slot.id) 
-                        ? 'bg-emerald-600/20 border-emerald-500 text-emerald-400' 
-                        : 'bg-[#121212] border-gray-850 text-gray-400 hover:border-emerald-900'
-                    }`}
-                  >
-                    {slot.label}
-                  </button>
-                ))}
+            <div className="mb-6 max-h-60 overflow-y-auto no-scrollbar">
+              <div className="grid grid-cols-4 gap-2 pt-1">
+                {HOURS_24.map(hour => {
+                  const isSelected = selectedHours.includes(hour);
+                  return (
+                    <button
+                      key={hour}
+                      onClick={() => toggleHour(hour)}
+                      className={`py-3 rounded-md text-xs font-bold transition-colors border text-center cursor-pointer ${
+                        isSelected 
+                          ? 'bg-amber-600 border-amber-500 text-stone-950' 
+                          : 'bg-[#121212] border-stone-700 text-gray-300 hover:border-amber-900'
+                      }`}
+                    >
+                      {hour}
+                    </button>
+                  );
+                })}
               </div>
             </div>
             

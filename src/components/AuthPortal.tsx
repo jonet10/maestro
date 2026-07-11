@@ -4,23 +4,13 @@ import { Mail, Lock, User, AlertCircle, Key, ChevronLeft, ArrowRight, Sparkles, 
 import { COUNTRIES } from "../utils/countryData";
 import { supportedLanguages, Language } from "../i18n/LanguageContext";
 
-const DAYS_OF_WEEK = [
-  { id: "monday", label: "Lundi" },
-  { id: "tuesday", label: "Mardi" },
-  { id: "wednesday", label: "Mercredi" },
-  { id: "thursday", label: "Jeudi" },
-  { id: "friday", label: "Vendredi" },
-  { id: "saturday", label: "Samedi" },
-  { id: "sunday", label: "Dimanche" },
-];
-
-const TIME_SLOTS = [
-  { id: "06-09", label: "06h - 09h" },
-  { id: "09-12", label: "09h - 12h" },
-  { id: "12-15", label: "12h - 15h" },
-  { id: "15-18", label: "15h - 18h" },
-  { id: "18-21", label: "18h - 21h" },
-  { id: "21-00", label: "21h - 00h" },
+const HOURS_24 = [
+  "06:00", "07:00", "08:00", "09:00",
+  "10:00", "11:00", "12:00", "13:00",
+  "14:00", "15:00", "16:00", "17:00",
+  "18:00", "19:00", "20:00", "21:00",
+  "22:00", "23:00", "00:00", "01:00",
+  "02:00", "03:00", "04:00", "05:00"
 ];
 
 interface AuthPortalProps {
@@ -37,23 +27,16 @@ export function AuthPortal({ onAuthSuccess, onBack, initialView = "login" }: Aut
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [selectedDays, setSelectedDays] = useState<string[]>([]);
-  const [selectedTimeSlots, setSelectedTimeSlots] = useState<string[]>([]);
+  const [selectedHours, setSelectedHours] = useState<string[]>([]);
   const [regStep, setRegStep] = useState(1);
   const [countryCode, setCountryCode] = useState("");
   const [preferredLanguage, setPreferredLanguage] = useState<Language>("fr");
   const [timezone, setTimezone] = useState("");
   const [acceptGameInvites, setAcceptGameInvites] = useState(true);
 
-  const toggleDay = (dayId: string) => {
-    setSelectedDays(prev => 
-      prev.includes(dayId) ? prev.filter(d => d !== dayId) : [...prev, dayId]
-    );
-  };
-
-  const toggleTimeSlot = (slotId: string) => {
-    setSelectedTimeSlots(prev => 
-      prev.includes(slotId) ? prev.filter(s => s !== slotId) : [...prev, slotId]
+  const toggleHour = (hour: string) => {
+    setSelectedHours(prev => 
+      prev.includes(hour) ? prev.filter(h => h !== hour) : [...prev, hour]
     );
   };
 
@@ -109,12 +92,8 @@ export function AuthPortal({ onAuthSuccess, onBack, initialView = "login" }: Aut
       setErrorMsg("Veuillez sélectionner votre pays.");
       return;
     }
-    if (selectedDays.length === 0) {
-      setErrorMsg("Veuillez sélectionner au moins un jour de disponibilité.");
-      return;
-    }
-    if (selectedTimeSlots.length === 0) {
-      setErrorMsg("Veuillez sélectionner au moins une plage horaire.");
+    if (selectedHours.length === 0) {
+      setErrorMsg("Veuillez sélectionner au moins une heure de disponibilité.");
       return;
     }
     setLoading(true);
@@ -136,8 +115,7 @@ export function AuthPortal({ onAuthSuccess, onBack, initialView = "login" }: Aut
             onboarding_completed: true,
             availability: {
               timezone: timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
-              days: selectedDays,
-              timeSlots: selectedTimeSlots
+              hours: selectedHours
             }
           },
         },
@@ -148,14 +126,14 @@ export function AuthPortal({ onAuthSuccess, onBack, initialView = "login" }: Aut
       } else {
         const user = signUpData.user;
         if (user) {
-          // Insert the availability slots into user_availabilities table
-          const availabilitiesToInsert = selectedDays.flatMap(day => {
-            const dayNum = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"].indexOf(day);
-            return selectedTimeSlots.map(slot => {
-              const [startH, endH] = slot.split("-");
+          // Insert the availability slots into user_availabilities table for all 7 days of the week
+          const availabilitiesToInsert = [0, 1, 2, 3, 4, 5, 6].flatMap(dayNum => {
+            return selectedHours.map(hour => {
+              const startH = hour.split(":")[0];
+              const endH = String((Number(startH) + 1) % 24).padStart(2, "0");
               return {
                 user_id: user.id,
-                day_of_week: dayNum !== -1 ? dayNum : 1,
+                day_of_week: dayNum,
                 start_time: `${startH}:00:00`,
                 end_time: `${endH}:00:00`,
                 timezone: timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -540,51 +518,32 @@ export function AuthPortal({ onAuthSuccess, onBack, initialView = "login" }: Aut
                   {/* Disponibilités */}
                   <div className="space-y-3 pt-2">
                     <div className="space-y-1">
-                      <label className="text-[10px] text-gray-500 uppercase font-mono font-bold tracking-wider block">
-                        Jours de disponibilité *
+                      <label className="text-[10px] text-gray-500 uppercase font-mono font-bold tracking-wider block text-center">
+                        Heures de disponibilité
                       </label>
-                      <div className="flex flex-wrap gap-1.5 pt-1">
-                        {DAYS_OF_WEEK.map((day) => (
-                          <button
-                            key={day.id}
-                            type="button"
-                            onClick={() => toggleDay(day.id)}
-                            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all border cursor-pointer ${
-                              selectedDays.includes(day.id)
-                                ? "bg-amber-500/20 border-amber-500 text-amber-400"
-                                : "bg-[#121212] border-gray-850 text-gray-400 hover:border-gray-700"
-                            }`}
-                          >
-                            {day.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-[10px] text-gray-500 uppercase font-mono font-bold tracking-wider block">
-                        Heures de disponibilité *
-                      </label>
-                      <div className="grid grid-cols-3 gap-1.5 pt-1">
-                        {TIME_SLOTS.map((slot) => (
-                          <button
-                            key={slot.id}
-                            type="button"
-                            onClick={() => toggleTimeSlot(slot.id)}
-                            className={`py-1.5 rounded-lg text-xs font-semibold text-center transition-all border cursor-pointer ${
-                              selectedTimeSlots.includes(slot.id)
-                                ? "bg-emerald-500/20 border-emerald-500 text-emerald-400"
-                                : "bg-[#121212] border-gray-850 text-gray-400 hover:border-gray-700"
-                            }`}
-                          >
-                            {slot.label}
-                          </button>
-                        ))}
+                      <div className="grid grid-cols-4 gap-2 pt-2">
+                        {HOURS_24.map((hour) => {
+                          const isSelected = selectedHours.includes(hour);
+                          return (
+                            <button
+                              key={hour}
+                              type="button"
+                              onClick={() => toggleHour(hour)}
+                              className={`py-3.5 rounded-xl text-xs font-bold text-center transition-all border cursor-pointer ${
+                                isSelected
+                                  ? "bg-amber-500/20 border-amber-500 text-amber-400"
+                                  : "bg-[#121212] border-gray-850 text-gray-300 hover:border-gray-700"
+                              }`}
+                            >
+                              {hour}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 pt-2">
                     <button
                       type="button"
                       onClick={() => setRegStep(2)}

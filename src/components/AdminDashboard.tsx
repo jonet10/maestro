@@ -176,12 +176,17 @@ export function AdminDashboard({ currentUser, onBack }: AdminDashboardProps) {
 
         const { data: availData } = await supabase
           .from("user_availabilities")
-          .select("day_of_week, start_time, end_time");
+          .select("user_id, start_time, end_time");
         if (availData) {
           const availSlotsCounts: Record<string, number> = {};
+          const seen = new Set<string>();
           availData.forEach(av => {
-            const timeLabel = `${av.start_time.substring(0, 5)} - ${av.end_time.substring(0, 5)}`;
-            availSlotsCounts[timeLabel] = (availSlotsCounts[timeLabel] || 0) + 1;
+            const key = `${av.user_id}-${av.start_time}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              const timeLabel = `${av.start_time.substring(0, 5)}`;
+              availSlotsCounts[timeLabel] = (availSlotsCounts[timeLabel] || 0) + 1;
+            }
           });
           setAvailabilityStats(availSlotsCounts);
         }
