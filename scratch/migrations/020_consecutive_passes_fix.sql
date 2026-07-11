@@ -178,7 +178,7 @@ BEGIN
   -- 4. PLAY_TILE
   IF action_type = 'PLAY_TILE' THEN
     tile := payload->'tile';
-    side := payload->>>'side';
+    side := payload->>'side';
     
     IF tile IS NULL OR side IS NULL THEN
       RAISE EXCEPTION 'Tuile ou côté manquant.';
