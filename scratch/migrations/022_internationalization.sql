@@ -113,3 +113,100 @@ CREATE POLICY "System settings write policy" ON public.system_settings
 -- H. Modification de la contrainte CHECK sur tournaments.max_participants pour autoriser 2 joueurs
 ALTER TABLE public.tournaments DROP CONSTRAINT IF EXISTS tournaments_max_participants_check;
 ALTER TABLE public.tournaments ADD CONSTRAINT tournaments_max_participants_check CHECK (max_participants IN (2, 4, 8, 16, 32));
+
+-- I. Mise à jour de start_tournament pour notifier les joueurs lors du lancement
+CREATE OR REPLACE FUNCTION public.start_tournament(p_tournament_id UUID)
+RETURNS VOID AS $$
+DECLARE
+  t_row public.tournaments%ROWTYPE;
+  p_ids UUID[];
+  p_count INT;
+  m_count INT;
+  r_id UUID;
+  creator_name TEXT;
+  opponent_name TEXT;
+BEGIN
+  -- Vérifier si l'utilisateur est admin
+  IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'super-admin')) THEN
+    RAISE EXCEPTION 'Non autorisé.';
+  END IF;
+
+  SELECT * INTO t_row FROM public.tournaments WHERE id = p_tournament_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Tournoi introuvable.';
+  END IF;
+
+  IF t_row.status <> 'upcoming' THEN
+    RAISE EXCEPTION 'Ce tournoi a déjà démarré.';
+  END IF;
+
+  -- Récupérer la liste des participants
+  SELECT ARRAY(
+    SELECT player_id FROM public.tournament_participants 
+    WHERE tournament_id = p_tournament_id
+    ORDER BY random() -- Shuffling
+  ) INTO p_ids;
+
+  p_count := array_length(p_ids, 1);
+  IF p_count IS NULL OR p_count <> t_row.max_participants THEN
+    RAISE EXCEPTION 'Le nombre de participants inscrit (% ) ne correspond pas à la taille du tournoi (%).', COALESCE(p_count, 0), t_row.max_participants;
+  END IF;
+
+  -- Mettre à jour le statut du tournoi
+  UPDATE public.tournaments SET status = 'active' WHERE id = p_tournament_id;
+
+  -- Générer les matchs du Round 1 (Index 0 .. N/2 - 1)
+  m_count := t_row.max_participants / 2;
+  FOR i IN 0..(m_count - 1) LOOP
+    
+    -- Récupérer les noms d'utilisateurs pour nommer le salon
+    SELECT username INTO creator_name FROM public.profiles WHERE id = p_ids[2 * i + 1];
+    SELECT username INTO opponent_name FROM public.profiles WHERE id = p_ids[2 * i + 2];
+
+    -- Créer la room privée
+    INSERT INTO public.rooms (name, creator_id, opponent_id, status, visibility, target_score, deal_option, game_state)
+    VALUES (
+      'Tournoi - ' || t_row.name || ' (R1 - M' || i || ')',
+      p_ids[2 * i + 1],
+      p_ids[2 * i + 2],
+      'active',
+      'private',
+      t_row.target_score,
+      'auto',
+      '{"matchStatus": "not-started"}'::jsonb
+    ) RETURNING id INTO r_id;
+
+    -- Créer le match lié
+    INSERT INTO public.tournament_matches (tournament_id, round_number, match_index, player1_id, player2_id, room_id, status)
+    VALUES (p_tournament_id, 1, i, p_ids[2 * i + 1], p_ids[2 * i + 2], r_id, 'scheduled');
+
+    -- Notifier le Joueur 1 (creator)
+    INSERT INTO public.notifications (user_id, type, payload)
+    VALUES (
+      p_ids[2 * i + 1],
+      'invite',
+      jsonb_build_object(
+        'sender_id', auth.uid(),
+        'room_id', r_id,
+        'message', 'Votre match de tournoi "' || t_row.name || '" a commencé ! Rejoignez le salon.'
+      )
+    );
+
+    -- Notifier le Joueur 2 (opponent)
+    INSERT INTO public.notifications (user_id, type, payload)
+    VALUES (
+      p_ids[2 * i + 2],
+      'invite',
+      jsonb_build_object(
+        'sender_id', auth.uid(),
+        'room_id', r_id,
+        'message', 'Votre match de tournoi "' || t_row.name || '" a commencé ! Rejoignez le salon.'
+      )
+    );
+  END LOOP;
+
+  -- Journaliser
+  INSERT INTO public.admin_logs (admin_id, action, target_type, target_id, details)
+  VALUES (auth.uid(), 'START_TOURNAMENT', 'tournament', p_tournament_id::text, 'Tournoi démarré avec ' || p_count || ' participants.');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
