@@ -106,12 +106,17 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ currentU
 
       <AnimatePresence>
         {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            className="absolute right-0 mt-2 w-72 bg-stone-900 border border-stone-800 rounded-xl shadow-2xl overflow-hidden z-50 flex flex-col"
-          >
+          <>
+            <div 
+              className="fixed inset-0 z-35 cursor-default" 
+              onClick={() => setIsOpen(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              className="absolute right-0 mt-2 w-72 bg-stone-900 border border-stone-800 rounded-xl shadow-2xl overflow-hidden z-50 flex flex-col"
+            >
             <div className="p-3 bg-stone-950 border-b border-stone-800 flex justify-between items-center">
               <span className="text-sm font-bold text-stone-200">Notifications</span>
               <button onClick={() => setIsOpen(false)} className="text-stone-500 hover:text-white">
@@ -181,6 +186,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ currentU
               )}
             </div>
           </motion.div>
+          </>
         )}
       </AnimatePresence>
 

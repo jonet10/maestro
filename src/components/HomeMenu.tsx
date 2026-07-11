@@ -69,14 +69,20 @@ export function HomeMenu({
           
           <AnimatePresence>
             {showFriends && (
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="absolute top-12 left-0 w-80 z-40"
-              >
-                <FriendsList currentUser={currentUser} onNavigateToGame={onNavigateToGame} />
-              </motion.div>
+              <>
+                <div 
+                  className="fixed inset-0 z-35 cursor-default" 
+                  onClick={() => setShowFriends(false)}
+                />
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="absolute top-12 left-0 w-80 z-40"
+                >
+                  <FriendsList currentUser={currentUser} onNavigateToGame={onNavigateToGame} />
+                </motion.div>
+              </>
             )}
           </AnimatePresence>
         </div>
