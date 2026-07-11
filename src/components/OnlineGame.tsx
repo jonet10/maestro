@@ -86,47 +86,51 @@ export function OnlineGame({ roomId, currentUser, onBackToLobby, onNavigateToGam
   const hoveredSlotIsVerticalRef = useRef<boolean>(true);
   const snappedTileValuesRef = useRef<Tile | null>(null);
   const floatingTileRef = useRef<HTMLDivElement | null>(null);
+  
+  const roomRef = useRef<OnlineRoom | null>(room);
+  const scorePopupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastCalledStartRoundTimestampRef = useRef<number | null>(null);
+  const [handFetched, setHandFetched] = useState(false);
+
+  useEffect(() => {
+    roomRef.current = room;
+  }, [room]);
 
   const fetchGameData = async () => {
     if (!supabase) return;
     try {
-      // 1. Fetch room
-      const { data: roomData, error: roomError } = await supabase
-        .from("rooms")
-        .select(`
-          *,
-          creator:creator_id ( username, win_rate ),
-          opponent:opponent_id ( username, win_rate )
-        `)
-        .eq("id", roomId)
-        .single();
+      // Fetch room and hand concurrently to prevent intermediate render cycles with inconsistent states
+      const [roomRes, handRes] = await Promise.all([
+        supabase
+          .from("rooms")
+          .select(`
+            *,
+            creator:creator_id ( username, win_rate ),
+            opponent:opponent_id ( username, win_rate )
+          `)
+          .eq("id", roomId)
+          .single(),
+        supabase
+          .from("room_hands")
+          .select("hand")
+          .eq("room_id", roomId)
+          .eq("player_id", currentUser.id)
+          .maybeSingle()
+      ]);
 
-      if (roomError) {
+      if (roomRes.error) {
         setErrorMsg("Impossible de récupérer les détails de la partie.");
-        console.error(roomError);
+        console.error(roomRes.error);
         return;
       }
       
-      const onlineRoom = roomData as OnlineRoom;
+      const onlineRoom = roomRes.data as OnlineRoom;
+      const rawHand = handRes.data?.hand || [];
+      const validHand = rawHand.filter((t: any) => Array.isArray(t) && t.length === 2);
+
       setRoom(onlineRoom);
-
-      // 2. Fetch Hand
-      const { data: handData, error: handError } = await supabase
-        .from("room_hands")
-        .select("hand")
-        .eq("room_id", roomId)
-        .eq("player_id", currentUser.id)
-        .maybeSingle();
-
-      if (handError) {
-        // If not dealed yet, hand will be empty
-        setHand([]);
-      } else {
-        const rawHand = handData?.hand || [];
-        // Filter out corrupted 1D arrays from old bug
-        const validHand = rawHand.filter((t: any) => Array.isArray(t) && t.length === 2);
-        setHand(validHand);
-      }
+      setHand(validHand);
+      setHandFetched(true);
     } catch (err: any) {
       console.error("Error fetching online game details:", err);
     }
@@ -174,8 +178,9 @@ export function OnlineGame({ roomId, currentUser, onBackToLobby, onNavigateToGam
           .flat()
           .map((p: any) => p.user_id);
 
-        if (room) {
-          const opponentId = currentUser.id === room.creator_id ? room.opponent_id : room.creator_id;
+        const currentRoom = roomRef.current;
+        if (currentRoom) {
+          const opponentId = currentUser.id === currentRoom.creator_id ? currentRoom.opponent_id : currentRoom.creator_id;
           if (opponentId) {
             const isOnline = connectedIds.includes(opponentId);
             setIsOpponentOnline(isOnline);
@@ -192,6 +197,7 @@ export function OnlineGame({ roomId, currentUser, onBackToLobby, onNavigateToGam
       supabase.removeChannel(roomSub);
       supabase.removeChannel(presenceChannel);
       if (dragRafRef.current) cancelAnimationFrame(dragRafRef.current);
+      if (scorePopupTimerRef.current) clearTimeout(scorePopupTimerRef.current);
     };
   }, [roomId, currentUser.id]);
 
@@ -344,7 +350,8 @@ export function OnlineGame({ roomId, currentUser, onBackToLobby, onNavigateToGam
           const lastLayout = layouts["temp"];
           if (lastLayout) {
             setScorePopup({ points: sum, gridX: lastLayout.gridX, gridY: lastLayout.gridY });
-            setTimeout(() => setScorePopup(null), 1500);
+            if (scorePopupTimerRef.current) clearTimeout(scorePopupTimerRef.current);
+            scorePopupTimerRef.current = setTimeout(() => setScorePopup(null), 1500);
           }
         }
       }
@@ -558,7 +565,7 @@ export function OnlineGame({ roomId, currentUser, onBackToLobby, onNavigateToGam
   };
 
   const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>, tile: Tile) => {
-    if (!isMyTurn || room.status !== "active") return;
+    if (!isMyTurn || room?.status !== "active") return;
 
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -675,7 +682,8 @@ export function OnlineGame({ roomId, currentUser, onBackToLobby, onNavigateToGam
         const diff = Math.ceil((nextStartAt - now) / 1000);
         if (diff <= 0) {
           setRoundCountdown(0);
-          if (isCreator) {
+          if (isCreator && lastCalledStartRoundTimestampRef.current !== nextStartAt) {
+            lastCalledStartRoundTimestampRef.current = nextStartAt;
             handleStartRound();
           }
         } else {
@@ -690,6 +698,43 @@ export function OnlineGame({ roomId, currentUser, onBackToLobby, onNavigateToGam
       setRoundCountdown(null);
     }
   }, [room?.game_state?.next_round_start_at, room?.status, isCreator]);
+
+  // Series manager / MatchSeriesEngine layer for Online play (Fixed mode finalization)
+  useEffect(() => {
+    if (!room || room.status !== "active" || !isCreator || !supabase) return;
+
+    const matchMode = room.match_mode || "first_to";
+    if (matchMode !== "fixed") return;
+
+    const revealPhase = room.game_state?.revealPhase || "none";
+    if (revealPhase !== "score") return;
+
+    const targetMan = room.target_manches || 3;
+    const wonC = room.game_state?.rounds_won_creator || 0;
+    const wonO = room.game_state?.rounds_won_opponent || 0;
+    const played = wonC + wonO;
+
+    // Check if we completed enough rounds AND we don't have a tie
+    if (played >= targetMan && wonC !== wonO) {
+      const finalizeMatch = async () => {
+        try {
+          await supabase.rpc("finish_fixed_match", { p_room_id: roomId });
+        } catch (err) {
+          console.error("Error finalizing fixed match:", err);
+        }
+      };
+      finalizeMatch();
+    }
+  }, [
+    room?.status, 
+    room?.game_state?.revealPhase, 
+    room?.game_state?.rounds_won_creator, 
+    room?.game_state?.rounds_won_opponent, 
+    room?.match_mode, 
+    room?.target_manches, 
+    isCreator, 
+    roomId
+  ]);
 
   useEffect(() => {
     if (room?.status === "finished") {
@@ -962,7 +1007,7 @@ export function OnlineGame({ roomId, currentUser, onBackToLobby, onNavigateToGam
         {/* Removed Start Game Round Overlay */}
         
         {/* Rescue button for corrupted games */}
-        {room.status === "active" && hand.length === 0 && placedTiles.length === 0 && (
+        {room.status === "active" && handFetched && hand.length === 0 && placedTiles.length === 0 && (
           <div className="absolute inset-0 z-50 flex flex-col justify-center items-center bg-black/80 p-6">
             <h2 className="text-xl font-bold text-white mb-4 text-center">Partie corrompue détectée</h2>
             <p className="text-sm text-gray-400 mb-6 text-center">Cette partie contient d'anciennes données corrompues. Vous devez la quitter pour en relancer une nouvelle avec votre ami.</p>
@@ -1378,7 +1423,7 @@ export function OnlineGame({ roomId, currentUser, onBackToLobby, onNavigateToGam
       </div>
 
       {/* Draw from Boneyard Overlay */}
-      {isMyTurn && !userCanPlay && boneyardCount > 0 && room.status === "active" && (
+      {isMyTurn && !userCanPlay && boneyardCount > 0 && room.status === "active" && handFetched && hand.length > 0 && (
         <BoneyardView 
           boneyard={Array(boneyardCount).fill([0,0])} 
           onDrawTile={handleDrawTile} 

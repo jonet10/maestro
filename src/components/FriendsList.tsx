@@ -18,6 +18,14 @@ export const FriendsList: React.FC<FriendsListProps> = ({ currentUser, onNavigat
   const [isSearching, setIsSearching] = useState(false);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const loadFriends = async () => {
     setLoading(true);
@@ -25,8 +33,9 @@ export const FriendsList: React.FC<FriendsListProps> = ({ currentUser, onNavigat
       fetchFriends(currentUser.id),
       fetchSuggestedUsers(currentUser.id, 5)
     ]);
+    if (!mountedRef.current) return;
     setFriends(data);
-    setSuggestedUsers(suggestions.filter(s => !data.some(f => f.username === s.username)));
+    setSuggestedUsers(suggestions.filter(s => !data.some(f => f.id === s.id)));
     setLoading(false);
   };
 
@@ -35,10 +44,12 @@ export const FriendsList: React.FC<FriendsListProps> = ({ currentUser, onNavigat
   }, [currentUser.id]);
 
   useEffect(() => {
+    let isCurrent = true;
     const delayDebounceFn = setTimeout(async () => {
       if (searchUsername.length >= 2) {
         setIsSearching(true);
         const results = await searchUsers(searchUsername, currentUser.id);
+        if (!isCurrent || !mountedRef.current) return;
         setSearchResults(results);
         setIsSearching(false);
       } else {
@@ -46,31 +57,38 @@ export const FriendsList: React.FC<FriendsListProps> = ({ currentUser, onNavigat
       }
     }, 400);
 
-    return () => clearTimeout(delayDebounceFn);
+    return () => {
+      isCurrent = false;
+      clearTimeout(delayDebounceFn);
+    };
   }, [searchUsername, currentUser.id]);
+
+  const handleSendRequest = async (targetUsername: string) => {
+    const result = await sendFriendRequest(currentUser.id, targetUsername);
+    if (!mountedRef.current) return;
+    if (result.success) {
+      setFeedback({ message: result.message, type: 'success' });
+      loadFriends();
+    } else {
+      setFeedback({ message: result.message, type: 'error' });
+    }
+    setTimeout(() => {
+      if (mountedRef.current) setFeedback(null);
+    }, 3000);
+  };
 
   const handleAddFriend = async (e?: React.FormEvent, targetUsername?: string) => {
     if (e) e.preventDefault();
     const usernameToAdd = targetUsername || searchUsername.trim();
     if (!usernameToAdd) return;
-
     setSearchResults([]);
-    const result = await sendFriendRequest(currentUser.id, usernameToAdd);
-    setFeedback({
-      message: result.message,
-      type: result.success ? 'success' : 'error'
-    });
-
-    if (result.success) {
-      setSearchUsername('');
-      loadFriends();
-    }
-
-    setTimeout(() => setFeedback(null), 3000);
+    setSearchUsername('');
+    await handleSendRequest(usernameToAdd);
   };
 
   const handleRespond = async (friendId: string, accept: boolean) => {
     const success = await respondToFriendRequest(currentUser.id, friendId, accept);
+    if (!mountedRef.current) return;
     if (success) {
       loadFriends();
     }
@@ -79,6 +97,7 @@ export const FriendsList: React.FC<FriendsListProps> = ({ currentUser, onNavigat
   const handleRemove = async (friendId: string) => {
     if (window.confirm("Voulez-vous vraiment retirer cet ami ?")) {
       const success = await removeFriend(currentUser.id, friendId);
+      if (!mountedRef.current) return;
       if (success) {
         loadFriends();
       }
@@ -97,15 +116,19 @@ export const FriendsList: React.FC<FriendsListProps> = ({ currentUser, onNavigat
       });
 
       if (error) throw error;
-      if (roomId) {
-        await sendGameInvite(currentUser.id, friendId, roomId);
-        localStorage.setItem("active_online_room_id", roomId);
-        onNavigateToGame(roomId);
-      }
+      if (!roomId) throw new Error("Le salon n'a pas pu être créé.");
+      
+      await sendGameInvite(currentUser.id, friendId, roomId);
+      localStorage.setItem("active_online_room_id", roomId);
+      onNavigateToGame(roomId);
     } catch (err) {
       console.error("Failed to invite to game", err);
-      setFeedback({ message: "Erreur lors de la création du match.", type: 'error' });
-      setTimeout(() => setFeedback(null), 3000);
+      if (mountedRef.current) {
+        setFeedback({ message: "Erreur lors de la création du match.", type: 'error' });
+        setTimeout(() => {
+          if (mountedRef.current) setFeedback(null);
+        }, 3000);
+      }
     }
   };
 

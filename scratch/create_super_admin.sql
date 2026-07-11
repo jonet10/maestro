@@ -1,14 +1,14 @@
 -- =========================================================================
 -- SCRIPT DE CRÉATION / PROMOTION DU COMPTE SUPER ADMIN
 -- =========================================================================
--- Email : admin@maestro.com
+-- Email : fawentz21@gmail.com
 -- Mot de passe : @#2026Maestro@
 -- =========================================================================
 
 DO $$
 DECLARE
   super_admin_id UUID := gen_random_uuid();
-  admin_email TEXT := 'admin@maestro.com';
+  admin_email TEXT := 'fawentz21@gmail.com';
   admin_password TEXT := '@#2026Maestro@';
   hashed_password TEXT;
   user_exists BOOLEAN;

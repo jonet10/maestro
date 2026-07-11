@@ -1,0 +1,53 @@
+{
+  "menu": {
+    "play": "Jugar",
+    "scores": "Clasificación",
+    "settings": "Ajustes",
+    "logout": "Cerrar sesión"
+  },
+  "auth": {
+    "login": "Iniciar sesión",
+    "register": "Crear Cuenta",
+    "email": "Email",
+    "password": "Contraseña",
+    "username": "Nombre de usuario",
+    "signin": "Entrar",
+    "signup": "Crear mi cuenta",
+    "loading": "Cargando...",
+    "step": "Paso {step} de {total}",
+    "choose_country": "Elige tu País",
+    "availabilities": "Disponibilidad",
+    "days": "Días disponibles *",
+    "hours": "Horas disponibles *"
+  },
+  "onboarding": {
+    "welcome": "¡Bienvenido a la nueva versión!",
+    "desc": "Maestro Domino está evolucionando. Para ayudarte a encontrar oponentes y participar en futuros torneos, completa tu perfil.",
+    "complete": "Completar mi perfil",
+    "later": "Más tarde"
+  },
+  "settings": {
+    "title": "Ajustes de Perfil",
+    "language": "Idioma Preferido",
+    "country": "País",
+    "timezone": "Zona Horaria (IANA)",
+    "accept_invites": "Aceptar invitaciones de juego",
+    "save": "Guardar cambios",
+    "saving": "Guardando..."
+  },
+  "profile": {
+    "available_now": "Disponible ahora",
+    "available_at": "Disponible a las {time}",
+    "next_available": "Siguiente disponibilidad: {info}",
+    "offline": "Desconectado",
+    "stats": "Estadísticas"
+  },
+  "game": {
+    "solo": "Modo Solo",
+    "local": "Partida Local",
+    "online": "Partida En Línea",
+    "turn": "Tu turno",
+    "opponent_turn": "Turno del oponente",
+    "boneyard": "Pozo"
+  }
+}

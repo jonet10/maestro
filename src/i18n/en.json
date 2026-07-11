@@ -1,0 +1,53 @@
+{
+  "menu": {
+    "play": "Play",
+    "scores": "Leaderboard",
+    "settings": "Settings",
+    "logout": "Log Out"
+  },
+  "auth": {
+    "login": "Login",
+    "register": "Create Account",
+    "email": "Email",
+    "password": "Password",
+    "username": "Username",
+    "signin": "Sign In",
+    "signup": "Create my account",
+    "loading": "Loading...",
+    "step": "Step {step} of {total}",
+    "choose_country": "Choose your Country",
+    "availabilities": "Availabilities",
+    "days": "Available Days *",
+    "hours": "Available Hours *"
+  },
+  "onboarding": {
+    "welcome": "Welcome to the new version!",
+    "desc": "Maestro Domino is evolving. To help you find opponents and participate in future tournaments, please complete your profile.",
+    "complete": "Complete my profile",
+    "later": "Later"
+  },
+  "settings": {
+    "title": "Profile Settings",
+    "language": "Preferred Language",
+    "country": "Country",
+    "timezone": "Timezone (IANA)",
+    "accept_invites": "Accept game invitations",
+    "save": "Save Changes",
+    "saving": "Saving..."
+  },
+  "profile": {
+    "available_now": "Available now",
+    "available_at": "Available at {time}",
+    "next_available": "Next availability: {info}",
+    "offline": "Offline",
+    "stats": "Statistics"
+  },
+  "game": {
+    "solo": "Solo Mode",
+    "local": "Local Match",
+    "online": "Online Match",
+    "turn": "Your turn",
+    "opponent_turn": "Opponent's turn",
+    "boneyard": "Boneyard"
+  }
+}

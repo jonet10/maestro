@@ -172,7 +172,7 @@ export interface OnlineRoom {
   name: string;
   creator_id: string;
   opponent_id: string | null;
-  status: "waiting" | "active" | "finished";
+  status: "waiting" | "active" | "finished" | "cancelled" | "abandoned";
   visibility: "public" | "private";
   room_code: string | null;
   target_score: number;
@@ -181,6 +181,8 @@ export interface OnlineRoom {
   game_state: OnlineGameState;
   creator_disconnected_at: string | null;
   opponent_disconnected_at: string | null;
+  match_mode?: "single" | "first_to" | "fixed";
+  target_manches?: number;
   created_at: string;
   updated_at: string;
   creator?: Profile;

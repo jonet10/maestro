@@ -90,9 +90,20 @@ import {
   X
 } from "lucide-react";
 
+import { LanguageProvider, useTranslation } from "./i18n/LanguageContext";
+
 const SHOW_DEBUG_FPS = false;
 
 export default function App() {
+  return (
+    <LanguageProvider>
+      <MainApp />
+    </LanguageProvider>
+  );
+}
+
+function MainApp() {
+  const { t, language, setLanguage } = useTranslation();
   // 1. Core States
   const [currentScreen, setCurrentScreen] = useState<AppScreen>("auth");
   const [gameMode, setGameMode] = useState<GameMode>("all-fives");
@@ -190,6 +201,7 @@ export default function App() {
     targetVisualScoreAi: 0
   });
   const [targetScore, setTargetScore] = useState<number>(100);
+  const [matchMode, setMatchMode] = useState<"single" | "first_to" | "fixed">("first_to");
   const [targetManches, setTargetManches] = useState<number>(3); // default to Best of 5 (3 wins)
   const [roundsHistory, setRoundsHistory] = useState<any[]>([]);
   const [mancheWinner, setMancheWinner] = useState<"user" | "ai" | null>(null);
@@ -678,28 +690,16 @@ export default function App() {
           return;
         }
 
-        // Si le profil existe mais que l'onboarding n'est pas marqué terminé, et qu'on a les disponibilités dans les métadonnées de connexion, on synchronise.
-        if (data.onboarding_completed !== true && currentUser?.user_metadata?.availability) {
-          try {
-            const { data: updatedData, error: updateError } = await supabase
-              .from("profiles")
-              .update({
-                availability: currentUser.user_metadata.availability,
-                onboarding_completed: true
-              })
-              .eq("id", userId)
-              .select()
-              .single();
-            if (!updateError && updatedData) {
-              setUserProfile(updatedData);
-              return;
-            }
-          } catch (err) {
-            console.error("Error auto-updating availability from user metadata:", err);
-          }
+        // Force onboarding if any mandatory field is missing
+        const isLegacyIncomplete = !data.country_code || !data.preferred_language || !data.timezone || data.onboarding_completed !== true;
+        if (isLegacyIncomplete) {
+          setUserProfile({
+            ...data,
+            onboarding_completed: false
+          });
+        } else {
+          setUserProfile(data);
         }
-
-        setUserProfile(data);
       }
     } catch (err) {
       console.error("Failed to fetch user profile:", err);
@@ -861,6 +861,56 @@ export default function App() {
         console.error(e);
       }
     }
+
+    const fetchSystemSettings = async () => {
+      if (!supabase) return;
+      try {
+        const { data, error } = await supabase
+          .from("system_settings")
+          .select("value")
+          .eq("key", "gameplay_config")
+          .maybeSingle();
+        if (data && data.value) {
+          const config = data.value;
+          if (!config.allow_custom_match_rules) {
+            setMatchMode(config.default_match_mode || "first_to");
+            setTargetScore(config.default_target_score || 100);
+            setTargetManches(config.default_target_manches || 3);
+          } else {
+            const hasLocalState = localStorage.getItem("maestro_domino_state");
+            if (!hasLocalState) {
+              setMatchMode(config.default_match_mode || "first_to");
+              setTargetScore(config.default_target_score || 100);
+              setTargetManches(config.default_target_manches || 3);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching system settings:", err);
+      }
+    };
+    fetchSystemSettings();
+
+    let settingsSubscription: any = null;
+    if (supabase) {
+      settingsSubscription = supabase
+        .channel("system-settings-changes")
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "system_settings", filter: "key=eq.gameplay_config" },
+          (payload: any) => {
+            if (payload.new && (payload.new as any).value) {
+              const config = (payload.new as any).value;
+              if (!config.allow_custom_match_rules) {
+                setMatchMode(config.default_match_mode || "first_to");
+                setTargetScore(config.default_target_score || 100);
+                setTargetManches(config.default_target_manches || 3);
+              }
+            }
+          }
+        )
+        .subscribe();
+    }
     const savedHistory = localStorage.getItem("maestro_domino_history");
     if (savedHistory) {
       try {
@@ -911,6 +961,37 @@ export default function App() {
         setMatchWinner(parsed.matchWinner ?? null);
         setIsDealing(parsed.isDealing ?? false);
         setNextRoundStarter(parsed.nextRoundStarter ?? null);
+
+        const modeVal = parsed.matchMode ?? "first_to";
+        const targetVal = parsed.targetManches ?? 3;
+        const historyVal = parsed.roundsHistory ?? [];
+        setMatchMode(modeVal);
+        setTargetManches(targetVal);
+        setRoundsHistory(historyVal);
+
+        const players = [
+          { id: "user", name: "Jean François" },
+          { id: "ai", name: "Bot Op" }
+        ];
+        const settings = {
+          targetManches: targetVal,
+          targetScorePerManche: parsed.targetScore ?? 100,
+          gameMode: "all-fives",
+          matchMode: modeVal
+        };
+        const manager = new MatchManager(players, settings);
+        manager.getMatchState().roundsWon["user"] = parsed.roundsWonUser ?? 0;
+        manager.getMatchState().roundsWon["ai"] = parsed.roundsWonAi ?? 0;
+        manager.getMatchState().roundsHistory = historyVal;
+        matchManagerRef.current = manager;
+        setMatchState(manager.getMatchState());
+
+        manager.subscribe("ROUND_COMPLETED", ({ roundResult, matchState: nextState }) => {
+          setMatchState(nextState);
+          setRoundsWonUser(nextState.roundsWon["user"] || 0);
+          setRoundsWonAi(nextState.roundsWon["ai"] || 0);
+          setRoundsHistory(nextState.roundsHistory);
+        });
 
         // Feature 5 recovery helper: if we loaded in "revealing" state, resolve scoring immediately to prevent soft lock.
         const savedStatus = parsed.matchStatus ?? "not-started";
@@ -1044,6 +1125,12 @@ export default function App() {
         console.error("Failed to load domino state:", e);
       }
     }
+
+    return () => {
+      if (settingsSubscription) {
+        settingsSubscription.unsubscribe();
+      }
+    };
   }, []);
 
   // Cleanup RAF on unmount
@@ -1079,10 +1166,13 @@ export default function App() {
       isDealing,
       nextRoundStarter,
       roundsWonUser,
-      roundsWonAi
+      roundsWonAi,
+      matchMode,
+      targetManches,
+      roundsHistory
     };
     localStorage.setItem("maestro_domino_state", JSON.stringify(state));
-  }, [scoreUser, scoreAi, userHand, aiHand, boneyard, placedTiles, currentPlayer, matchStatus, round, winner, targetScore, gameType, gameMode, matchWinner, isDealing, nextRoundStarter, roundsWonUser, roundsWonAi]);
+  }, [scoreUser, scoreAi, userHand, aiHand, boneyard, placedTiles, currentPlayer, matchStatus, round, winner, targetScore, gameType, gameMode, matchWinner, isDealing, nextRoundStarter, roundsWonUser, roundsWonAi, matchMode, targetManches, roundsHistory]);
 
   // Start the next round of the match (next manche)
   const handleStartNextManche = () => {
@@ -1969,7 +2059,7 @@ export default function App() {
 
   // 7. Tactical AI Action Loop (triggers when currentPlayer is 'ai')
   useEffect(() => {
-    if (currentPlayer !== "ai" || matchStatus !== "ongoing" || isDealing) return;
+    if (currentPlayer !== "ai" || matchStatus !== "ongoing" || isDealing || noPlayState.active) return;
 
     setAiThinking(true);
 
@@ -2088,7 +2178,7 @@ export default function App() {
     }, 1200);
 
     return () => clearTimeout(timer);
-  }, [currentPlayer, aiHand.length, placedTiles.length, consecutivePasses]);
+  }, [currentPlayer, aiHand.length, placedTiles.length, consecutivePasses, noPlayState.active]);
 
 
 
@@ -2289,7 +2379,8 @@ export default function App() {
     const settings = {
       targetManches,
       targetScorePerManche: targetScore,
-      gameMode
+      gameMode,
+      matchMode
     };
     
     const manager = new MatchManager(players, settings);
@@ -3242,28 +3333,59 @@ export default function App() {
                   )}
                 </div>
 
-                {/* Match Target Selection (Best of 1, 3, 5, 7) */}
+                {/* Match Mode Selection */}
                 <div className="space-y-2 pt-2 border-t border-gray-800/35">
-                  <label className="text-[10px] text-gray-500 uppercase font-mono font-bold tracking-wider">Format du Match</label>
-                  <div className="grid grid-cols-4 gap-1 bg-[#181818] p-1 rounded-xl">
-                    {([1, 2, 3, 4] as number[]).map(wins => {
-                      const labels: Record<number, string> = { 1: "BO1", 2: "BO3", 3: "BO5", 4: "BO7" };
+                  <label className="text-[10px] text-gray-500 uppercase font-mono font-bold tracking-wider">Mode du Match</label>
+                  <div className="grid grid-cols-3 gap-1 bg-[#181818] p-1 rounded-xl">
+                    {(["single", "first_to", "fixed"] as const).map(mode => {
+                      const labels = { single: "Unique", first_to: "Premier à", fixed: "Nombre Fixe" };
                       return (
                         <button
-                          key={wins}
-                          onClick={() => setTargetManches(wins)}
-                          className={`py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                            targetManches === wins 
+                          key={mode}
+                          onClick={() => {
+                            setMatchMode(mode);
+                            if (mode === "single") setTargetManches(1);
+                            else if (mode === "first_to") setTargetManches(3); // default first to 3 wins (BO5)
+                            else if (mode === "fixed") setTargetManches(4); // default 4 rounds
+                          }}
+                          className={`py-2 text-[10px] font-semibold rounded-lg transition-all cursor-pointer ${
+                            matchMode === mode 
                               ? "bg-gray-800 text-amber-500 font-bold shadow-sm" 
                               : "text-gray-400 hover:text-gray-250 hover:bg-gray-800/10"
                           }`}
                         >
-                          {labels[wins]}
+                          {labels[mode]}
                         </button>
                       );
                     })}
                   </div>
                 </div>
+
+                {/* Match Target Manches Selection */}
+                {matchMode !== "single" && (
+                  <div className="space-y-2 pt-2 border-t border-gray-800/35">
+                    <label className="text-[10px] text-gray-500 uppercase font-mono font-bold tracking-wider">
+                      {matchMode === "first_to" ? "Manches pour gagner" : "Nombre de manches à jouer"}
+                    </label>
+                    <div className="grid grid-cols-5 gap-1 bg-[#181818] p-1 rounded-xl">
+                      {(matchMode === "first_to" ? [2, 3, 5, 7] : [3, 4, 5, 6, 10]).map(val => {
+                        return (
+                          <button
+                            key={val}
+                            onClick={() => setTargetManches(val)}
+                            className={`py-2 text-[10px] font-semibold rounded-lg transition-all cursor-pointer ${
+                              targetManches === val 
+                                ? "bg-gray-800 text-amber-500 font-bold shadow-sm" 
+                                : "text-gray-400 hover:text-gray-250 hover:bg-gray-800/10"
+                            }`}
+                          >
+                            {val}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 {/* Dealing Method Selection (Feature 1) */}
                 <div className="space-y-2 pt-2 border-t border-gray-800/35">
@@ -3419,21 +3541,44 @@ export default function App() {
                   {isSimulatingReconnection ? "Syncing Board State..." : "🔄 Simulate Reconnection"}
                 </button>
               </div>
+
+              {/* 3. PROFILE & PREFERENCES */}
+              {userProfile && (
+                <div className="bg-[#121212] border border-gray-800/80 rounded-2xl p-4 space-y-4">
+                  <h3 className="text-xs uppercase text-amber-500 font-bold tracking-wider font-mono">Profil & Langue</h3>
+                  <button
+                    onClick={() => {
+                      setProfileModalPlayerId(userProfile.id);
+                      setShowProfileModal(true);
+                    }}
+                    className="w-full flex items-center justify-between p-3 bg-[#181818] border border-gray-800/50 rounded-xl hover:border-amber-500/50 transition-all cursor-pointer text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Globe className="text-amber-500 w-4 h-4" />
+                      <div>
+                        <span className="text-xs font-bold text-white block">Modifier mes préférences</span>
+                        <span className="text-[10px] text-gray-500">Langue, Pays, Fuseau horaire, Invitations</span>
+                      </div>
+                    </div>
+                    <ChevronLeft size={16} className="rotate-180 text-gray-500" />
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Bottom Nav spacer */}
             <div className="h-16 shrink-0 bg-[#0c0c0c] border-t border-gray-800/80 flex justify-around items-center mt-auto">
               <button onClick={() => setCurrentScreen("home")} className="flex flex-col items-center justify-center w-1/3 text-gray-500 hover:text-amber-500 gap-1 cursor-pointer">
                 <Gamepad2 size={20} />
-                <span className="text-[10px] font-medium tracking-wider">Play</span>
+                <span className="text-[10px] font-medium tracking-wider">{t("menu.play")}</span>
               </button>
               <button onClick={() => setCurrentScreen("leaderboard")} className="flex flex-col items-center justify-center w-1/3 text-gray-500 hover:text-amber-500 gap-1 cursor-pointer">
                 <Trophy size={20} />
-                <span className="text-[10px] font-medium tracking-wider">Scores</span>
+                <span className="text-[10px] font-medium tracking-wider">{t("menu.scores")}</span>
               </button>
               <button onClick={() => setCurrentScreen("settings")} className="flex flex-col items-center justify-center w-1/3 text-amber-500 gap-1 cursor-pointer">
                 <Settings size={22} />
-                <span className="text-[10px] font-bold tracking-wider">Settings</span>
+                <span className="text-[10px] font-bold tracking-wider">{t("menu.settings")}</span>
               </button>
             </div>
           </div>

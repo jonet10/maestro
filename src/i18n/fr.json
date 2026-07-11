@@ -1,0 +1,53 @@
+{
+  "menu": {
+    "play": "Jouer",
+    "scores": "Classement",
+    "settings": "Paramètres",
+    "logout": "Déconnexion"
+  },
+  "auth": {
+    "login": "Connexion",
+    "register": "Créer un Compte",
+    "email": "Email",
+    "password": "Mot de passe",
+    "username": "Nom d'utilisateur",
+    "signin": "Se connecter",
+    "signup": "Créer mon compte",
+    "loading": "Chargement...",
+    "step": "Étape {step} sur {total}",
+    "choose_country": "Choisissez votre Pays",
+    "availabilities": "Disponibilités",
+    "days": "Jours de disponibilité *",
+    "hours": "Heures de disponibilité *"
+  },
+  "onboarding": {
+    "welcome": "Bienvenue sur la nouvelle version !",
+    "desc": "Maestro Domino évolue. Pour vous aider à trouver des adversaires et participer aux futurs tournois, veuillez compléter votre profil.",
+    "complete": "Compléter mon profil",
+    "later": "Plus tard"
+  },
+  "settings": {
+    "title": "Paramètres de Profil",
+    "language": "Langue Préférée",
+    "country": "Pays",
+    "timezone": "Fuseau Horaire (IANA)",
+    "accept_invites": "Accepter les invitations de jeu",
+    "save": "Sauvegarder",
+    "saving": "Sauvegarde..."
+  },
+  "profile": {
+    "available_now": "Disponible maintenant",
+    "available_at": "Disponible à {time}",
+    "next_available": "Prochaine disponibilité : {info}",
+    "offline": "Hors ligne",
+    "stats": "Statistiques"
+  },
+  "game": {
+    "solo": "Mode Solo",
+    "local": "Partie Locale",
+    "online": "Partie En Ligne",
+    "turn": "Votre tour",
+    "opponent_turn": "Tour de l'adversaire",
+    "boneyard": "Pioche"
+  }
+}

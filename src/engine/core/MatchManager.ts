@@ -18,6 +18,7 @@ export interface MatchSettings {
   targetManches: number; // ex: 3 (Best of 5)
   targetScorePerManche: number; // ex: 100
   gameMode: string;
+  matchMode?: "single" | "first_to" | "fixed";
 }
 
 export interface MatchState {
@@ -83,11 +84,40 @@ export class MatchManager {
 
     if (winnerId !== null && this.state.roundsWon[winnerId] !== undefined) {
       this.state.roundsWon[winnerId] += 1;
+    }
 
-      // Check if match winner condition is met
-      if (this.state.roundsWon[winnerId] >= this.state.settings.targetManches) {
+    const mode = this.state.settings.matchMode || "first_to";
+    const target = this.state.settings.targetManches;
+
+    if (mode === "single") {
+      if (winnerId !== null && this.state.roundsWon[winnerId] >= 1) {
         this.state.isMatchFinished = true;
         this.state.matchWinnerId = winnerId;
+      }
+    } else if (mode === "first_to") {
+      if (winnerId !== null && this.state.roundsWon[winnerId] >= target) {
+        this.state.isMatchFinished = true;
+        this.state.matchWinnerId = winnerId;
+      }
+    } else if (mode === "fixed") {
+      if (this.state.roundsHistory.length >= target) {
+        const players = this.state.players;
+        const p1 = players[0].id;
+        const p2 = players[1].id;
+        const w1 = this.state.roundsWon[p1] || 0;
+        const w2 = this.state.roundsWon[p2] || 0;
+
+        if (w1 > w2) {
+          this.state.isMatchFinished = true;
+          this.state.matchWinnerId = p1;
+        } else if (w2 > w1) {
+          this.state.isMatchFinished = true;
+          this.state.matchWinnerId = p2;
+        } else {
+          // Tie: play decisive extra round (do not set isMatchFinished to true)
+          this.state.isMatchFinished = false;
+          this.state.matchWinnerId = null;
+        }
       }
     }
 

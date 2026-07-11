@@ -152,7 +152,12 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ currentU
                         <button 
                           onClick={async () => {
                             if (supabase) {
-                              await supabase.rpc("join_room", { p_room_id: notif.payload.room_id });
+                              const { error } = await supabase.rpc("join_room", { p_room_id: notif.payload.room_id });
+                              if (error) {
+                                alert("Impossible de rejoindre ce salon. Il est peut-être complet ou a été fermé.");
+                                console.error("Error joining room:", error);
+                                return;
+                              }
                             }
                             handleMarkRead(notif.id);
                             onNavigateToRoom(notif.payload.room_id);

@@ -1,0 +1,53 @@
+{
+  "menu": {
+    "play": "Jwe",
+    "scores": "Klasman",
+    "settings": "Anviwònman",
+    "logout": "Dekonekte"
+  },
+  "auth": {
+    "login": "Konekte",
+    "register": "Kreye yon Kont",
+    "email": "Imel",
+    "password": "Mopas",
+    "username": "Non Itilizatè",
+    "signin": "Konekte",
+    "signup": "Kreye kont mwen",
+    "loading": "Chaje...",
+    "step": "Etap {step} sou {total}",
+    "choose_country": "Chwazi Peyi ou",
+    "availabilities": "Disponibilite",
+    "days": "Jou ou disponib *",
+    "hours": "Lè ou disponib *"
+  },
+  "onboarding": {
+    "welcome": "Byenveni nan nouvo vèsyon an !",
+    "desc": "Maestro Domino ap chanje. Pou ede w jwenn moun pou jwe ak yo epi patisipe nan tounwa, tanpri konplete pwofil ou.",
+    "complete": "Konplete pwofil mwen",
+    "later": "Pita"
+  },
+  "settings": {
+    "title": "Anviwònman Pwofil",
+    "language": "Lang ou Prefere",
+    "country": "Peyi",
+    "timezone": "Zònè (IANA)",
+    "accept_invites": "Aksepte envitasyon jwèt",
+    "save": "Sove",
+    "saving": "Ap sove..."
+  },
+  "profile": {
+    "available_now": "Disponib kounye a",
+    "available_at": "Disponib a {time}",
+    "next_available": "Pwochen disponibilite : {info}",
+    "offline": "Dekonekte",
+    "stats": "Estatistik"
+  },
+  "game": {
+    "solo": "Jwe pou kont ou",
+    "local": "Jwe an lokal",
+    "online": "Jwe sou entènèt",
+    "turn": "Kou pa w",
+    "opponent_turn": "Kou advèsè a",
+    "boneyard": "Pioch"
+  }
+}

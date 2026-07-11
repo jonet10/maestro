@@ -4,16 +4,18 @@ import { Profile, Tournament, OnlineRoom, AdminLog } from "../types";
 import { 
   Users, Trophy, Eye, FileText, BarChart3, Ban, ShieldCheck, 
   Plus, Play, RefreshCw, X, ChevronLeft, ShieldAlert, Sparkles,
-  Search, Crown, Activity, Gamepad2, ArrowRight, Mail
+  Search, Crown, Activity, Gamepad2, ArrowRight, Mail, Settings, Globe
 } from "lucide-react";
 import { EmailingAdminTab } from "./EmailingAdminTab";
+import { COUNTRIES } from "../utils/countryData";
+import { supportedLanguages } from "../i18n/LanguageContext";
 
 interface AdminDashboardProps {
   currentUser: Profile;
   onBack: () => void;
 }
 
-type TabType = "overview" | "players" | "championships" | "live-rooms" | "logs" | "emailing";
+type TabType = "overview" | "players" | "championships" | "live-rooms" | "logs" | "emailing" | "i18n" | "settings";
 
 export function AdminDashboard({ currentUser, onBack }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<TabType>("overview");
@@ -21,11 +23,33 @@ export function AdminDashboard({ currentUser, onBack }: AdminDashboardProps) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  // Settings tab states
+  const [defaultMatchMode, setDefaultMatchMode] = useState<"single" | "first_to" | "fixed">("first_to");
+  const [defaultTargetScore, setDefaultTargetScore] = useState(100);
+  const [defaultTargetManches, setDefaultTargetManches] = useState(3);
+  const [allowCustomMatchRules, setAllowCustomMatchRules] = useState(true);
+  const [turnTimer, setTurnTimer] = useState(15);
+  const [autoPlay, setAutoPlay] = useState(false);
+  const [animationsConfig, setAnimationsConfig] = useState({
+    pass: true,
+    score: true,
+    victory: true,
+    roundEnd: true,
+    matchEnd: true
+  });
+
   // States for data
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [liveRooms, setLiveRooms] = useState<OnlineRoom[]>([]);
   const [adminLogs, setAdminLogs] = useState<AdminLog[]>([]);
+
+  // i18n states
+  const [enabledLanguages, setEnabledLanguages] = useState<string[]>(["fr", "ht", "en", "es", "pt"]);
+  const [countryStats, setCountryStats] = useState<Record<string, number>>({});
+  const [languageStats, setLanguageStats] = useState<Record<string, number>>({});
+  const [peakRegistrationHours, setPeakRegistrationHours] = useState<number[]>(Array(24).fill(0));
+  const [availabilityStats, setAvailabilityStats] = useState<Record<string, number>>({});
 
   // Search/Filter states
   const [playerSearch, setPlayerSearch] = useState("");
@@ -111,8 +135,76 @@ export function AdminDashboard({ currentUser, onBack }: AdminDashboardProps) {
           .select("*, admin:profiles!admin_id(*)")
           .order("created_at", { ascending: false })
           .limit(50);
-        if (error) throw error;
         setAdminLogs(logs || []);
+      }
+      else if (activeTab === "i18n") {
+        const { data: langData } = await supabase
+          .from("system_settings")
+          .select("value")
+          .eq("key", "enabled_languages")
+          .maybeSingle();
+        if (langData && langData.value) {
+          setEnabledLanguages(langData.value);
+        }
+
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("country_code, preferred_language, created_at");
+        
+        if (profilesData) {
+          const countryCounts: Record<string, number> = {};
+          const langCounts: Record<string, number> = {};
+          const hourCounts: number[] = Array(24).fill(0);
+
+          profilesData.forEach(p => {
+            if (p.country_code) {
+              countryCounts[p.country_code] = (countryCounts[p.country_code] || 0) + 1;
+            }
+            if (p.preferred_language) {
+              langCounts[p.preferred_language] = (langCounts[p.preferred_language] || 0) + 1;
+            }
+            if (p.created_at) {
+              const hour = new Date(p.created_at).getHours();
+              hourCounts[hour]++;
+            }
+          });
+
+          setCountryStats(countryCounts);
+          setLanguageStats(langCounts);
+          setPeakRegistrationHours(hourCounts);
+        }
+
+        const { data: availData } = await supabase
+          .from("user_availabilities")
+          .select("day_of_week, start_time, end_time");
+        if (availData) {
+          const availSlotsCounts: Record<string, number> = {};
+          availData.forEach(av => {
+            const timeLabel = `${av.start_time.substring(0, 5)} - ${av.end_time.substring(0, 5)}`;
+            availSlotsCounts[timeLabel] = (availSlotsCounts[timeLabel] || 0) + 1;
+          });
+          setAvailabilityStats(availSlotsCounts);
+        }
+      }
+      else if (activeTab === "settings") {
+        const { data, error } = await supabase
+          .from("system_settings")
+          .select("value")
+          .eq("key", "gameplay_config")
+          .maybeSingle();
+        if (error && error.code !== "PGRST116") throw error;
+        if (data && data.value) {
+          const config = data.value;
+          setDefaultMatchMode(config.default_match_mode || "first_to");
+          setDefaultTargetScore(config.default_target_score || 100);
+          setDefaultTargetManches(config.default_target_manches || 3);
+          setAllowCustomMatchRules(config.allow_custom_match_rules !== false);
+          setTurnTimer(config.turn_timer || 15);
+          setAutoPlay(!!config.auto_play);
+          if (config.animations) {
+            setAnimationsConfig(config.animations);
+          }
+        }
       }
     } catch (err: any) {
       setErrorMsg(err.message || "Erreur de chargement des données.");
@@ -221,6 +313,52 @@ export function AdminDashboard({ currentUser, onBack }: AdminDashboardProps) {
     }
   };
 
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supabase) return;
+    setLoading(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    try {
+      const payload = {
+        default_match_mode: defaultMatchMode,
+        default_target_score: defaultTargetScore,
+        default_target_manches: defaultTargetManches,
+        allow_custom_match_rules: allowCustomMatchRules,
+        turn_timer: turnTimer,
+        auto_play: autoPlay,
+        animations: animationsConfig
+      };
+
+      const { error } = await supabase
+        .from("system_settings")
+        .upsert({
+          key: "gameplay_config",
+          value: payload,
+          updated_by: currentUser.id,
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+
+      // Log settings update
+      await supabase.from("admin_logs").insert([
+        {
+          admin_id: currentUser.id,
+          action: "UPDATE_SYSTEM_SETTINGS",
+          target_type: "system_settings",
+          details: `Configuration du gameplay mise à jour par l'admin.`
+        }
+      ]);
+
+      setSuccessMsg("Configuration globale sauvegardée avec succès !");
+    } catch (err: any) {
+      setErrorMsg(err.message || "Erreur lors de la sauvegarde.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const filteredProfiles = profiles.filter(p => 
     p.username.toLowerCase().includes(playerSearch.toLowerCase())
   );
@@ -250,7 +388,9 @@ export function AdminDashboard({ currentUser, onBack }: AdminDashboardProps) {
           { id: "championships", label: "Tournois", icon: <Trophy size={14} /> },
           { id: "live-rooms", label: "Salons Live", icon: <Activity size={14} /> },
           { id: "emailing", label: "Emailing", icon: <Mail size={14} /> },
-          { id: "logs", label: "Logs", icon: <FileText size={14} /> }
+          { id: "logs", label: "Logs", icon: <FileText size={14} /> },
+          { id: "i18n", label: "Internationalisation", icon: <Globe size={14} /> },
+          ...(currentUser.role === "super-admin" ? [{ id: "settings", label: "Configuration", icon: <Settings size={14} /> }] : [])
         ].map(tab => (
           <button
             key={tab.id}
@@ -658,6 +798,285 @@ export function AdminDashboard({ currentUser, onBack }: AdminDashboardProps) {
                   )}
                 </div>
               </div>
+            )}
+
+            {/* 5B. INTERNATIONALISATION TAB */}
+            {activeTab === "i18n" && (
+              <div className="space-y-6">
+                {/* Administrative language controls */}
+                <div className="bg-[#0c0c0c] border border-gray-900 rounded-2xl p-6 space-y-4">
+                  <div className="flex items-center gap-1.5 border-b border-gray-900 pb-3">
+                    <Globe className="text-amber-500" size={16} />
+                    <h3 className="text-xs font-black uppercase tracking-widest text-white font-mono">Langues de la Plateforme</h3>
+                  </div>
+                  
+                  <p className="text-[10px] text-gray-500 font-mono">Sélectionnez les langues disponibles pour les utilisateurs :</p>
+                  
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3 pt-2">
+                    {supportedLanguages.map(l => {
+                      const isEnabled = enabledLanguages.includes(l.code);
+                      return (
+                        <button
+                          key={l.code}
+                          type="button"
+                          onClick={async () => {
+                            const next = isEnabled
+                              ? enabledLanguages.filter(code => code !== l.code)
+                              : [...enabledLanguages, l.code];
+                            if (next.length > 0) {
+                              if (!supabase) return;
+                              setErrorMsg(null);
+                              setSuccessMsg(null);
+                              try {
+                                const { error } = await supabase
+                                  .from("system_settings")
+                                  .upsert({
+                                    key: "enabled_languages",
+                                    value: next,
+                                    description: "Liste des langues activées sur la plateforme"
+                                  });
+                                if (error) throw error;
+                                setEnabledLanguages(next);
+                                setSuccessMsg("Configuration des langues mise à jour avec succès.");
+                              } catch (err: any) {
+                                setErrorMsg(err.message || "Erreur lors de la mise à jour des langues.");
+                              }
+                            }
+                          }}
+                          className={`p-3 rounded-xl border text-left flex items-center justify-between transition-all cursor-pointer ${
+                            isEnabled
+                              ? "bg-amber-500/10 border-amber-500 text-white"
+                              : "bg-[#121212] border-gray-850 text-gray-500 hover:border-gray-700"
+                          }`}
+                        >
+                          <span className="text-xs font-bold">{l.flag} {l.name}</span>
+                          <input
+                            type="checkbox"
+                            checked={isEnabled}
+                            readOnly
+                            className="h-3.5 w-3.5 accent-amber-500 cursor-pointer pointer-events-none"
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Stats country & languages */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Countries statistics */}
+                  <div className="bg-[#0c0c0c] border border-gray-900 rounded-2xl p-6 space-y-4">
+                    <h4 className="text-xs font-black uppercase tracking-widest text-amber-500 font-mono">Utilisateurs par Pays</h4>
+                    <div className="space-y-2 max-h-60 overflow-y-auto no-scrollbar pt-2">
+                      {COUNTRIES.map(c => {
+                        const count = countryStats[c.code] || 0;
+                        return (
+                          <div key={c.code} className="flex items-center justify-between p-2 bg-[#121212] rounded-xl border border-gray-850">
+                            <span className="text-xs font-bold text-white flex items-center gap-2">
+                              <span className="text-lg">{c.flag}</span>
+                              <span>{c.name}</span>
+                            </span>
+                            <span className="text-xs font-mono font-bold text-amber-500">{count} joueurs</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Languages statistics */}
+                  <div className="bg-[#0c0c0c] border border-gray-900 rounded-2xl p-6 space-y-4">
+                    <h4 className="text-xs font-black uppercase tracking-widest text-amber-500 font-mono">Utilisateurs par Langue</h4>
+                    <div className="space-y-2 max-h-60 overflow-y-auto no-scrollbar pt-2">
+                      {supportedLanguages.map(l => {
+                        const count = languageStats[l.code] || 0;
+                        return (
+                          <div key={l.code} className="flex items-center justify-between p-2 bg-[#121212] rounded-xl border border-gray-850">
+                            <span className="text-xs font-bold text-white flex items-center gap-2">
+                              <span className="text-lg">{l.flag}</span>
+                              <span>{l.name}</span>
+                            </span>
+                            <span className="text-xs font-mono font-bold text-amber-500">{count} joueurs</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Connexions / Peak Hours & Availabilities statistics */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Availability slots statistics */}
+                  <div className="bg-[#0c0c0c] border border-gray-900 rounded-2xl p-6 space-y-4">
+                    <h4 className="text-xs font-black uppercase tracking-widest text-amber-500 font-mono">Créneaux de Disponibilité Populaires</h4>
+                    <div className="space-y-2 max-h-60 overflow-y-auto no-scrollbar pt-2">
+                      {Object.keys(availabilityStats).length > 0 ? (
+                        Object.entries(availabilityStats)
+                          .sort((a, b) => b[1] - a[1])
+                          .map(([slot, count]) => (
+                            <div key={slot} className="flex items-center justify-between p-2 bg-[#121212] rounded-xl border border-gray-850">
+                              <span className="text-xs font-bold text-stone-300 font-mono">⏰ {slot}</span>
+                              <span className="text-xs font-mono font-bold text-amber-500">{count} votes</span>
+                            </div>
+                          ))
+                      ) : (
+                        <p className="text-center text-xs text-gray-500 py-4 font-mono">Aucun créneau sélectionné.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Peak registration hours statistics */}
+                  <div className="bg-[#0c0c0c] border border-gray-900 rounded-2xl p-6 space-y-4">
+                    <h4 className="text-xs font-black uppercase tracking-widest text-amber-500 font-mono">Heures de Pointe Inscriptions</h4>
+                    <div className="space-y-2 max-h-60 overflow-y-auto no-scrollbar pt-2">
+                      {peakRegistrationHours.some(c => c > 0) ? (
+                        peakRegistrationHours
+                          .map((count, hour) => ({ hour, count }))
+                          .sort((a, b) => b.count - a.count)
+                          .filter(x => x.count > 0)
+                          .slice(0, 6)
+                          .map(item => (
+                            <div key={item.hour} className="flex items-center justify-between p-2 bg-[#121212] rounded-xl border border-gray-850">
+                              <span className="text-xs font-bold text-stone-300 font-mono">🕒 {item.hour}h - {item.hour + 1}h</span>
+                              <span className="text-xs font-mono font-bold text-amber-500">{item.count} inscrits</span>
+                            </div>
+                          ))
+                      ) : (
+                        <p className="text-center text-xs text-gray-500 py-4 font-mono">Aucune inscription enregistrée.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 6. SETTINGS TAB */}
+            {activeTab === "settings" && currentUser.role === "super-admin" && (
+              <form onSubmit={handleSaveSettings} className="space-y-6">
+                <div className="bg-[#0c0c0c] border border-gray-900 rounded-2xl p-6 space-y-6">
+                  <div className="flex items-center gap-1.5 border-b border-gray-900 pb-3">
+                    <Settings className="text-red-500" size={16} />
+                    <h3 className="text-xs font-black uppercase tracking-widest text-white font-mono">Configuration Globale</h3>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Default Match Mode */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] text-gray-500 uppercase font-mono font-bold tracking-wider block">Mode de Match par Défaut</label>
+                      <select
+                        value={defaultMatchMode}
+                        onChange={(e) => setDefaultMatchMode(e.target.value as any)}
+                        className="w-full bg-[#121212] border border-gray-800 rounded-xl py-3 px-4 text-xs text-white focus:outline-none focus:border-red-500/60 transition-all font-mono"
+                      >
+                        <option value="single">Partie Unique (1 Manche)</option>
+                        <option value="first_to">Premier à X Manches (First To)</option>
+                        <option value="fixed">Nombre Fixe de Manches (Fixed)</option>
+                      </select>
+                    </div>
+
+                    {/* Default Target Score */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] text-gray-500 uppercase font-mono font-bold tracking-wider block">Score Cible par Défaut</label>
+                      <input
+                        type="number"
+                        required
+                        value={defaultTargetScore}
+                        onChange={(e) => setDefaultTargetScore(Number(e.target.value))}
+                        className="w-full bg-[#121212] border border-gray-800 rounded-xl py-3 px-4 text-xs text-white focus:outline-none focus:border-red-500/60 transition-all font-mono"
+                      />
+                    </div>
+
+                    {/* Default Target Manches */}
+                    {defaultMatchMode !== "single" && (
+                      <div className="space-y-2">
+                        <label className="text-[10px] text-gray-500 uppercase font-mono font-bold tracking-wider block">
+                          {defaultMatchMode === "first_to" ? "Manches gagnantes par défaut" : "Nombre de manches par défaut"}
+                        </label>
+                        <input
+                          type="number"
+                          required
+                          value={defaultTargetManches}
+                          onChange={(e) => setDefaultTargetManches(Number(e.target.value))}
+                          className="w-full bg-[#121212] border border-gray-800 rounded-xl py-3 px-4 text-xs text-white focus:outline-none focus:border-red-500/60 transition-all font-mono"
+                        />
+                      </div>
+                    )}
+
+                    {/* Turn Timer Duration */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] text-gray-500 uppercase font-mono font-bold tracking-wider block">Temps par Tour (secondes)</label>
+                      <select
+                        value={turnTimer}
+                        onChange={(e) => setTurnTimer(Number(e.target.value))}
+                        className="w-full bg-[#121212] border border-gray-800 rounded-xl py-3 px-4 text-xs text-white focus:outline-none focus:border-red-500/60 transition-all font-mono"
+                      >
+                        {[5, 10, 15, 20, 30, 60].map(val => (
+                          <option key={val} value={val}>{val} secondes</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Allow Custom Match Rules */}
+                    <div className="flex items-center justify-between p-3 bg-[#121212] border border-gray-800/60 rounded-xl md:col-span-2">
+                      <div className="space-y-0.5">
+                        <label className="text-xs font-bold text-white">Autoriser les règles personnalisées</label>
+                        <p className="text-[9px] text-gray-500">Permet aux joueurs d'écraser ces règles par défaut dans le lobby.</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={allowCustomMatchRules}
+                        onChange={(e) => setAllowCustomMatchRules(e.target.checked)}
+                        className="h-4 w-4 accent-amber-500 rounded cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Autoplay Toggle */}
+                    <div className="flex items-center justify-between p-3 bg-[#121212] border border-gray-800/60 rounded-xl md:col-span-2">
+                      <div className="space-y-0.5">
+                        <label className="text-xs font-bold text-white">Jeu Automatique (Auto Play)</label>
+                        <p className="text-[9px] text-gray-500">Force l'IA ou les actions automatiques de secours si activé.</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={autoPlay}
+                        onChange={(e) => setAutoPlay(e.target.checked)}
+                        className="h-4 w-4 accent-amber-500 rounded cursor-pointer"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Animations settings */}
+                  <div className="border-t border-gray-900 pt-5 space-y-4">
+                    <h4 className="text-[10px] text-gray-400 uppercase font-mono font-bold tracking-wider">Animations Actives</h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {[
+                        { key: "pass", label: "Passe" },
+                        { key: "score", label: "Score" },
+                        { key: "victory", label: "Victoire" },
+                        { key: "roundEnd", label: "Fin de Manche" },
+                        { key: "matchEnd", label: "Fin de Série" }
+                      ].map(anim => (
+                        <div key={anim.key} className="flex items-center justify-between p-2.5 bg-[#121212] border border-gray-850 rounded-xl">
+                          <span className="text-[10px] text-gray-300 font-medium">{anim.label}</span>
+                          <input
+                            type="checkbox"
+                            checked={(animationsConfig as any)[anim.key] !== false}
+                            onChange={(e) => setAnimationsConfig(prev => ({ ...prev, [anim.key]: e.target.checked }))}
+                            className="h-3.5 w-3.5 accent-amber-500 rounded cursor-pointer"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-4 bg-gradient-to-r from-amber-500 to-amber-600 text-stone-950 font-bold uppercase tracking-wider rounded-xl hover:brightness-105 active:scale-98 transition-all cursor-pointer text-xs"
+                  >
+                    {loading ? "Sauvegarde..." : "Sauvegarder la Configuration"}
+                  </button>
+                </div>
+              </form>
             )}
           </>
         )}

@@ -21,6 +21,8 @@ export function OnlineLobby({ currentUser, onSignOut, onNavigateToGame, onNaviga
   const [newTargetScore, setNewTargetScore] = useState<50 | 100 | 150 | 200>(100);
   const [newDealOption, setNewDealOption] = useState<"auto" | "manual">("auto");
   const [newVisibility, setNewVisibility] = useState<"public" | "private">("public");
+  const [newMatchMode, setNewMatchMode] = useState<"single" | "first_to" | "fixed">("first_to");
+  const [newTargetManches, setNewTargetManches] = useState<number>(3);
   
   // Join private states
   const [privateCode, setPrivateCode] = useState("");
@@ -63,6 +65,19 @@ export function OnlineLobby({ currentUser, onSignOut, onNavigateToGame, onNaviga
         console.error("Rooms fetch error:", roomsError);
       } else {
         setRooms(roomsData || []);
+      }
+
+      // Fetch global settings
+      const { data: settingsData } = await supabase
+        .from("system_settings")
+        .select("value")
+        .eq("key", "gameplay_config")
+        .single();
+      if (settingsData && settingsData.value) {
+        const config = settingsData.value;
+        setNewMatchMode(config.default_match_mode || "first_to");
+        setNewTargetScore((config.default_target_score as any) || 100);
+        setNewTargetManches(config.default_target_manches || 3);
       }
     } catch (err: any) {
       setLobbyError(err.message || "Une erreur est survenue.");
@@ -109,6 +124,8 @@ export function OnlineLobby({ currentUser, onSignOut, onNavigateToGame, onNaviga
         target_score: newTargetScore,
         deal_option: newDealOption,
         visibility: newVisibility,
+        match_mode: newMatchMode,
+        target_manches: newMatchMode === "fixed" ? 9999 : (newMatchMode === "single" ? 1 : newTargetManches)
       });
 
       if (error) {
@@ -384,6 +401,56 @@ export function OnlineLobby({ currentUser, onSignOut, onNavigateToGame, onNaviga
                   ))}
                 </div>
               </div>
+
+              {/* Match Mode */}
+              <div className="space-y-1">
+                <label className="text-[9px] text-gray-500 uppercase font-mono font-bold tracking-wider block">Mode du Match</label>
+                <div className="grid grid-cols-3 gap-1 bg-[#181818] p-1 rounded-xl">
+                  {(["single", "first_to", "fixed"] as const).map((mode) => {
+                    const labels = { single: "Unique", first_to: "Premier à", fixed: "Fixe" };
+                    return (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => {
+                          setNewMatchMode(mode);
+                          if (mode === "single") setNewTargetManches(1);
+                          else if (mode === "first_to") setNewTargetManches(3);
+                          else if (mode === "fixed") setNewTargetManches(4);
+                        }}
+                        className={`py-1.5 text-[9px] font-bold rounded-lg transition-all cursor-pointer ${
+                          newMatchMode === mode ? "bg-gray-800 text-amber-500 shadow-sm" : "text-gray-400 hover:text-white"
+                        }`}
+                      >
+                        {labels[mode]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Match Target Manches */}
+              {newMatchMode !== "single" && (
+                <div className="space-y-1">
+                  <label className="text-[9px] text-gray-500 uppercase font-mono font-bold tracking-wider block">
+                    {newMatchMode === "first_to" ? "Manches gagnantes" : "Nombre de manches"}
+                  </label>
+                  <div className="grid grid-cols-5 gap-1 bg-[#181818] p-1 rounded-xl">
+                    {(newMatchMode === "first_to" ? [2, 3, 5, 7] : [3, 4, 5, 6, 10]).map((val) => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setNewTargetManches(val)}
+                        className={`py-1.5 text-[10px] font-bold rounded-lg transition-all cursor-pointer ${
+                          newTargetManches === val ? "bg-gray-800 text-amber-500 shadow-sm" : "text-gray-400 hover:text-white"
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Deal option */}
               <div className="space-y-1">
