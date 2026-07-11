@@ -109,3 +109,7 @@ CREATE POLICY "System settings write policy" ON public.system_settings
       WHERE id = auth.uid() AND role IN ('admin', 'super-admin')
     )
   );
+
+-- H. Modification de la contrainte CHECK sur tournaments.max_participants pour autoriser 2 joueurs
+ALTER TABLE public.tournaments DROP CONSTRAINT IF EXISTS tournaments_max_participants_check;
+ALTER TABLE public.tournaments ADD CONSTRAINT tournaments_max_participants_check CHECK (max_participants IN (2, 4, 8, 16, 32));
