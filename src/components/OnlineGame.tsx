@@ -91,10 +91,33 @@ export function OnlineGame({ roomId, currentUser, onBackToLobby, onNavigateToGam
   const scorePopupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastCalledStartRoundTimestampRef = useRef<number | null>(null);
   const [handFetched, setHandFetched] = useState(false);
+  const [isGameCorrupted, setIsGameCorrupted] = useState(false);
 
   useEffect(() => {
     roomRef.current = room;
   }, [room]);
+
+  useEffect(() => {
+    let timer: any;
+    const isPossiblyCorrupted = 
+      room?.status === "active" && 
+      handFetched && 
+      hand.length === 0 && 
+      placedTiles.length === 0 &&
+      room?.game_state?.matchStatus === "started";
+
+    if (isPossiblyCorrupted) {
+      timer = setTimeout(() => {
+        setIsGameCorrupted(true);
+      }, 4000); // 4 seconds delay to avoid race conditions during loading/dealing
+    } else {
+      setIsGameCorrupted(false);
+    }
+
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [room?.status, handFetched, hand.length, placedTiles.length, room?.game_state?.matchStatus]);
 
   const fetchGameData = async () => {
     if (!supabase) return;
@@ -1007,7 +1030,7 @@ export function OnlineGame({ roomId, currentUser, onBackToLobby, onNavigateToGam
         {/* Removed Start Game Round Overlay */}
         
         {/* Rescue button for corrupted games */}
-        {room.status === "active" && handFetched && hand.length === 0 && placedTiles.length === 0 && (
+        {isGameCorrupted && (
           <div className="absolute inset-0 z-50 flex flex-col justify-center items-center bg-black/80 p-6">
             <h2 className="text-xl font-bold text-white mb-4 text-center">Partie corrompue détectée</h2>
             <p className="text-sm text-gray-400 mb-6 text-center">Cette partie contient d'anciennes données corrompues. Vous devez la quitter pour en relancer une nouvelle avec votre ami.</p>
@@ -1016,7 +1039,7 @@ export function OnlineGame({ roomId, currentUser, onBackToLobby, onNavigateToGam
                 localStorage.removeItem("active_online_room_id");
                 window.location.reload();
               }}
-              className="px-6 py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg shadow-lg"
+              className="px-6 py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg shadow-lg cursor-pointer"
             >
               Forcer le retour au menu
             </button>
