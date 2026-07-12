@@ -2213,7 +2213,6 @@ function MainApp() {
 
     if (result === "user") {
       roundWinner = "user";
-      setRoundsWonUser(prev => prev + 1);
       const exactPips = aiPipsSum;
       scoreGained = ScoreEngine.roundToNearestFive(exactPips);
       setScoreUser(prev => ScoreEngine.addPlayerScore(prev, scoreGained));
@@ -2221,7 +2220,6 @@ function MainApp() {
       endMessage = `🎉 Domino! You cleared your hand. You win Round ${round} and score ${scoreGained} points (opp. hand pips: ${exactPips} rounded to nearest 5) from AI's remaining hand.`;
     } else if (result === "ai") {
       roundWinner = "ai";
-      setRoundsWonAi(prev => prev + 1);
       const exactPips = userPipsSum;
       scoreGained = ScoreEngine.roundToNearestFive(exactPips);
       setScoreAi(prev => ScoreEngine.addPlayerScore(prev, scoreGained));
@@ -2234,14 +2232,12 @@ function MainApp() {
       endMessage = blockedResult.reason;
 
       if (roundWinner === "user") {
-        setRoundsWonUser(prev => prev + 1);
         const exactDiff = aiPipsSum - userPipsSum;
         scoreGained = ScoreEngine.roundToNearestFive(exactDiff);
         setScoreUser(prev => ScoreEngine.addPlayerScore(prev, scoreGained));
         triggerPointsFlash("user", scoreGained, "user");
         endMessage = `⚠️ Game Blocked! You win Round ${round} and get ${scoreGained} points (difference: ${exactDiff} rounded to nearest 5)!`;
       } else if (roundWinner === "ai") {
-        setRoundsWonAi(prev => prev + 1);
         const exactDiff = userPipsSum - aiPipsSum;
         scoreGained = ScoreEngine.roundToNearestFive(exactDiff);
         setScoreAi(prev => ScoreEngine.addPlayerScore(prev, scoreGained));
