@@ -707,3 +707,68 @@ BEGIN
   RETURN substring(md5(random()::text), 1, 12);
 END;
 $$ LANGUAGE plpgsql VOLATILE;
+
+-- N. Définition de la fonction de commodité remove_tile_from_hand
+CREATE OR REPLACE FUNCTION public.remove_tile_from_hand(p_hand JSONB, p_tile JSONB)
+RETURNS JSONB AS $$
+DECLARE
+  v_result JSONB := '[]'::jsonb;
+  v_elem JSONB;
+  v_removed BOOLEAN := false;
+BEGIN
+  -- Boucle sur les dominos de la main et supprime le premier qui correspond à p_tile
+  FOR v_elem IN SELECT * FROM jsonb_array_elements(p_hand) LOOP
+    IF NOT v_removed AND (
+         (v_elem->0 = p_tile->0 AND v_elem->1 = p_tile->1) OR
+         (v_elem->0 = p_tile->1 AND v_elem->1 = p_tile->0)
+       ) THEN
+      v_removed := true; -- supprime uniquement la première occurrence
+    ELSE
+      v_result := v_result || jsonb_build_array(v_elem);
+    END IF;
+  END LOOP;
+  RETURN v_result;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- O. Définition de la fonction de validation is_valid_play
+CREATE OR REPLACE FUNCTION public.is_valid_play(p_tile JSONB, p_side TEXT, p_open_ends JSONB)
+RETURNS BOOLEAN AS $$
+DECLARE
+  v_open_val INT;
+BEGIN
+  IF p_side = 'start' THEN
+    RETURN true;
+  END IF;
+
+  v_open_val := (p_open_ends->>p_side)::int;
+  IF v_open_val IS NULL THEN
+    RETURN false;
+  END IF;
+
+  RETURN (p_tile->>0)::int = v_open_val OR (p_tile->>1)::int = v_open_val;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- P. Définition de la fonction calculate_tile_rotation
+CREATE OR REPLACE FUNCTION public.calculate_tile_rotation(p_tile JSONB, p_side TEXT, p_placed_tiles JSONB)
+RETURNS JSONB AS $$
+DECLARE
+  v_open_ends JSONB;
+BEGIN
+  IF p_side = 'start' OR jsonb_array_length(p_placed_tiles) = 0 THEN
+    RETURN p_tile;
+  END IF;
+  
+  v_open_ends := public.get_open_ends(p_placed_tiles);
+  RETURN public.get_played_tile_rotation(p_tile, p_side, v_open_ends);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Q. Définition de la fonction can_play
+CREATE OR REPLACE FUNCTION public.can_play(p_hand JSONB, p_open_ends JSONB)
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN public.has_playable_tile(p_hand, p_open_ends);
+END;
+$$ LANGUAGE plpgsql;
