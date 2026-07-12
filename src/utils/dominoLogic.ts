@@ -623,7 +623,15 @@ export function computeTileLayouts(placedTiles: PlacedTile[]): Record<string, Ti
   const MAX_LIMIT_Y = Math.round(7.5 * scaleFactor);
   const MIN_LIMIT_Y = -Math.round(7.5 * scaleFactor);
 
-  placedTiles.forEach(pt => {
+  // Separate and sort tiles by branch to process them from center outwards
+  const leftBranch = placedTiles.filter(pt => pt.playedAt === "left").reverse();
+  const rightBranch = placedTiles.filter(pt => pt.playedAt === "right");
+  const topBranch = placedTiles.filter(pt => pt.playedAt === "top").reverse();
+  const bottomBranch = placedTiles.filter(pt => pt.playedAt === "bottom");
+
+  const sortedTiles = [startTile, ...leftBranch, ...rightBranch, ...topBranch, ...bottomBranch];
+
+  sortedTiles.forEach(pt => {
     if (pt.playedAt === "start") return;
     if (layouts[pt.id]) return; // Skip replica tiles as they already have layout
 
