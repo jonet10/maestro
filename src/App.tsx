@@ -337,17 +337,24 @@ function MainApp() {
 
   useEffect(() => {
     if (turnTimeLeft === 0 && currentPlayer === "user" && matchStatus === "ongoing" && !isDealing && !matchWinner) {
-      triggerAutoplayForUser();
+      if (noPlayState.active && noPlayState.step === "await_user_draw") {
+        handleUserDraw(0);
+      } else if (!noPlayState.active) {
+        triggerAutoplayForUser();
+      }
     }
-  }, [turnTimeLeft, currentPlayer, matchStatus, isDealing, matchWinner]);
+  }, [turnTimeLeft, currentPlayer, matchStatus, isDealing, matchWinner, noPlayState.active, noPlayState.step]);
 
   // Turn timer effect
   useEffect(() => {
-    if (matchStatus !== "ongoing" || isDealing || !!matchWinner || noPlayState.active) {
+    const isNormalTurn = matchStatus === "ongoing" && !isDealing && !matchWinner && !noPlayState.active;
+    const isManualDraw = matchStatus === "ongoing" && !isDealing && !matchWinner && noPlayState.active && noPlayState.step === "await_user_draw" && noPlayState.player === "user";
+
+    if (!isNormalTurn && !isManualDraw) {
       return;
     }
 
-    setTurnTimeLeft(GAME_CONFIG.turnTimerDuration);
+    setTurnTimeLeft(isManualDraw ? 10 : GAME_CONFIG.turnTimerDuration);
 
     const interval = setInterval(() => {
       setTurnTimeLeft((prev) => {
@@ -360,7 +367,7 @@ function MainApp() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [currentPlayer, matchStatus, isDealing, matchWinner, noPlayState.active]);
+  }, [currentPlayer, matchStatus, isDealing, matchWinner, noPlayState.active, noPlayState.step, noPlayState.player]);
 
   // Effect to detect when player has no plays and start sequence
   useEffect(() => {
@@ -1967,12 +1974,14 @@ function MainApp() {
           step: "draw",
           drawnTile
         }));
+        setTurnTimeLeft(GAME_CONFIG.turnTimerDuration);
       } else {
         setNoPlayState(prev => ({
           ...prev,
           step: "await_user_draw",
           drawnTile: null
         }));
+        setTurnTimeLeft(10);
       }
     } else {
       if (isPlayable) {
