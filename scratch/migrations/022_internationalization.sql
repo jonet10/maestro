@@ -698,3 +698,12 @@ BEGIN
       OR (p_hand @> jsonb_build_array(v_tile_rev));
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
+
+-- M. Définition de la fonction generateId dans PostgreSQL
+CREATE OR REPLACE FUNCTION public.generateid()
+RETURNS TEXT AS $$
+BEGIN
+  -- Retourne un identifiant alphanumérique aléatoire (12 caractères)
+  RETURN substring(md5(random()::text), 1, 12);
+END;
+$$ LANGUAGE plpgsql VOLATILE;
