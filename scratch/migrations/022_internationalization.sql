@@ -772,3 +772,28 @@ BEGIN
   RETURN public.has_playable_tile(p_hand, p_open_ends);
 END;
 $$ LANGUAGE plpgsql;
+
+-- R. Activer la réplication Realtime pour chaque table de manière sécurisée
+DO $$
+DECLARE
+  v_table TEXT;
+  v_tables TEXT[] := ARRAY['rooms', 'room_hands', 'moves', 'notifications'];
+BEGIN
+  -- S'assurer que la publication existe
+  IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+    CREATE PUBLICATION supabase_realtime;
+  END IF;
+
+  FOREACH v_table IN ARRAY v_tables LOOP
+    BEGIN
+      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', v_table);
+    EXCEPTION 
+      WHEN duplicate_object THEN
+        -- Déjà présent dans la publication, ignorer en toute sécurité
+        NULL;
+      WHEN OTHERS THEN
+        RAISE NOTICE 'Erreur lors de l''ajout de % : %', v_table, SQLERRM;
+    END;
+  END LOOP;
+END;
+$$;
