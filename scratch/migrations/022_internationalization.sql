@@ -685,3 +685,16 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
+-- L. Définition de la fonction de commodité player_has_tile si manquante
+CREATE OR REPLACE FUNCTION public.player_has_tile(p_hand JSONB, p_tile JSONB)
+RETURNS BOOLEAN AS $$
+DECLARE
+  v_tile_rev JSONB;
+BEGIN
+  -- Permet de vérifier la présence d'une tuile dans la main dans les deux sens [a,b] ou [b,a]
+  v_tile_rev := jsonb_build_array(p_tile->1, p_tile->0);
+  RETURN (p_hand @> jsonb_build_array(p_tile)) 
+      OR (p_hand @> jsonb_build_array(v_tile_rev));
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
