@@ -45,16 +45,8 @@ export function determineFirstPlayer(
   aiHand: Tile[],
   prevWinner: PlayerType | null
 ): { starter: PlayerType; reason: string; tile: Tile | null } {
-  // Règle: Le gagnant de la manche précédente commence automatiquement la suivante
-  if (prevWinner) {
-    return {
-      starter: prevWinner,
-      reason: `Vainqueur de la manche précédente.`,
-      tile: null, // Pas de tuile spécifique requise pour jouer
-    };
-  }
-
-  // Manche 1 : Recherche du plus grand double
+  // Règle : Le plus grand double détermine toujours qui commence la manche
+  // (à chaque manche, après redistribution des dominos)
   const userBestDouble = getHeaviestDouble(userHand);
   const aiBestDouble = getHeaviestDouble(aiHand);
 
