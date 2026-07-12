@@ -87,7 +87,8 @@ import {
   Settings,
   Share2,
   RotateCcw,
-  X
+  X,
+  Globe
 } from "lucide-react";
 
 import { LanguageProvider, useTranslation } from "./i18n/LanguageContext";
