@@ -624,9 +624,9 @@ export function computeTileLayouts(placedTiles: PlacedTile[]): Record<string, Ti
   const MIN_LIMIT_Y = -Math.round(7.5 * scaleFactor);
 
   // Separate and sort tiles by branch to process them from center outwards
-  const leftBranch = placedTiles.filter(pt => pt.playedAt === "left").reverse();
+  const leftBranch = placedTiles.filter(pt => pt.playedAt === "left");
   const rightBranch = placedTiles.filter(pt => pt.playedAt === "right");
-  const topBranch = placedTiles.filter(pt => pt.playedAt === "top").reverse();
+  const topBranch = placedTiles.filter(pt => pt.playedAt === "top");
   const bottomBranch = placedTiles.filter(pt => pt.playedAt === "bottom");
 
   const sortedTiles = [startTile, ...leftBranch, ...rightBranch, ...topBranch, ...bottomBranch];
