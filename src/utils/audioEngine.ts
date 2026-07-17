@@ -1,8 +1,26 @@
 // Simple Web Audio API synthesizer for domino sound effects
 
 let audioCtx: AudioContext | null = null;
+let hasUserInteracted = false;
+
+// Initialize user interaction listener
+if (typeof window !== 'undefined') {
+  const handleInteraction = () => {
+    hasUserInteracted = true;
+    window.removeEventListener('click', handleInteraction);
+    window.removeEventListener('keydown', handleInteraction);
+    window.removeEventListener('touchstart', handleInteraction);
+    // Optionally pre-warm the audio context on first interaction
+    initAudio();
+  };
+  window.addEventListener('click', handleInteraction, { once: true });
+  window.addEventListener('keydown', handleInteraction, { once: true });
+  window.addEventListener('touchstart', handleInteraction, { once: true });
+}
 
 const initAudio = () => {
+  if (!hasUserInteracted) return null;
+  
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
   }
