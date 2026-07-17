@@ -10,12 +10,13 @@ if (typeof window !== 'undefined') {
     window.removeEventListener('click', handleInteraction);
     window.removeEventListener('keydown', handleInteraction);
     window.removeEventListener('touchstart', handleInteraction);
-    // Optionally pre-warm the audio context on first interaction
-    initAudio();
+    // We don't pre-warm here because some browsers (like Safari) can still be picky 
+    // about which event types unlock audio. We just record that an interaction happened.
   };
   window.addEventListener('click', handleInteraction, { once: true });
   window.addEventListener('keydown', handleInteraction, { once: true });
-  window.addEventListener('touchstart', handleInteraction, { once: true });
+  window.addEventListener('touchend', handleInteraction, { once: true });
+  window.addEventListener('pointerdown', handleInteraction, { once: true });
 }
 
 const initAudio = () => {
