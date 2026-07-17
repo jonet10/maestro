@@ -35,11 +35,6 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ profile, onC
     );
   };
 
-  const toggleTimeSlot = (slotId: string) => {
-    setSelectedTimeSlots(prev => 
-      prev.includes(slotId) ? prev.filter(s => s !== slotId) : [...prev, slotId]
-    );
-  };
 
   const handleSave = async () => {
     if (!countryCode) {

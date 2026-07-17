@@ -3569,8 +3569,7 @@ function MainApp() {
                   <h3 className="text-xs uppercase text-amber-500 font-bold tracking-wider font-mono">Profil & Langue</h3>
                   <button
                     onClick={() => {
-                      setProfileModalPlayerId(userProfile.id);
-                      setShowProfileModal(true);
+                      console.log("Profile preferences clicked");
                     }}
                     className="w-full flex items-center justify-between p-3 bg-[#181818] border border-gray-800/50 rounded-xl hover:border-amber-500/50 transition-all cursor-pointer text-left"
                   >

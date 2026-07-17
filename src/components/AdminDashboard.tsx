@@ -936,7 +936,7 @@ export function AdminDashboard({ currentUser, onBack }: AdminDashboardProps) {
                     <div className="space-y-2 max-h-60 overflow-y-auto no-scrollbar pt-2">
                       {Object.keys(availabilityStats).length > 0 ? (
                         Object.entries(availabilityStats)
-                          .sort((a, b) => b[1] - a[1])
+                          .sort((a: [string, number], b: [string, number]) => b[1] - a[1])
                           .map(([slot, count]) => (
                             <div key={slot} className="flex items-center justify-between p-2 bg-[#121212] rounded-xl border border-gray-850">
                               <span className="text-xs font-bold text-stone-300 font-mono">⏰ {slot}</span>

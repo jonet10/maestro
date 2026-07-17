@@ -69,6 +69,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ currentU
                 registration.showNotification(title, {
                   body: body,
                   icon: '/Maesto.png',
+                  // @ts-expect-error - vibrate is not always typed in NotificationOptions
                   vibrate: [200, 100, 200],
                   tag: newNotif.id,
                   data: newNotif.payload
