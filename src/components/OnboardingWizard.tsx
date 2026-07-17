@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../utils/supabaseClient';
 import { Profile } from '../types';
 import { COUNTRIES } from '../utils/countryData';
-import { supportedLanguages, Language } from '../i18n/LanguageContext';
+import { supportedLanguages, Language, useTranslation } from '../i18n/LanguageContext';
 
 interface OnboardingWizardProps {
   profile: Profile;
@@ -22,6 +22,7 @@ const HOURS_24 = [
 export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ profile, onComplete }) => {
   const [step, setStep] = useState(1);
   const [countryCode, setCountryCode] = useState(profile.country_code || "");
+  const { setLanguage } = useTranslation();
   const [preferredLanguage, setPreferredLanguage] = useState<Language>((profile.preferred_language as Language) || "fr");
   const [timezone, setTimezone] = useState(profile.timezone || "");
   const [acceptGameInvites, setAcceptGameInvites] = useState(profile.accept_game_invites !== false);
@@ -178,6 +179,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({ profile, onC
                     if (found) {
                       setPreferredLanguage(found.defaultLang as any);
                       setTimezone(found.defaultTimezone);
+                      setLanguage(found.defaultLang as any);
                     }
                   }}
                   className="w-full bg-[#121212] border border-gray-805 rounded-xl py-2 px-3 text-xs text-white focus:outline-none focus:border-amber-500/60 transition-all font-mono"

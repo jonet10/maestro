@@ -207,7 +207,8 @@ BEGIN
 
   -- Journaliser
   INSERT INTO public.admin_logs (admin_id, action, target_type, target_id, details)
-  END;
+  VALUES (auth.uid(), 'START_TOURNAMENT', 'tournament', p_tournament_id::text, 'Tournoi démarré avec ' || p_count || ' participants.');
+END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- J. Attribution des droits sur la table moves

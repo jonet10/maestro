@@ -6,10 +6,22 @@ const initAudio = () => {
   if (!audioCtx) {
     audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
   }
-  if (audioCtx.state === 'suspended') {
+  if (audioCtx.state === 'suspended' && !document.hidden) {
     audioCtx.resume();
   }
   return audioCtx;
+};
+
+export const suspendAudio = () => {
+  if (audioCtx && audioCtx.state === 'running') {
+    audioCtx.suspend();
+  }
+};
+
+export const resumeAudio = () => {
+  if (audioCtx && audioCtx.state === 'suspended' && !document.hidden) {
+    audioCtx.resume();
+  }
 };
 
 export const playTilePlacementSound = () => {

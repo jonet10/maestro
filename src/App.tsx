@@ -43,7 +43,7 @@ import { analyzeGameState } from "./utils/analysisEngine";
 import { getBestMoveForHand } from "./utils/aiStrategy";
 import { supabase } from "./utils/supabaseClient";
 import * as ScoreEngine from "./utils/scoreEngine";
-import { playTilePlacementSound } from "./utils/audioEngine";
+import { playTilePlacementSound, suspendAudio, resumeAudio } from "./utils/audioEngine";
 
 // --- Engine Modules ---
 import { GAME_CONFIG } from "./engine/config/GameConfig";
@@ -147,6 +147,17 @@ function MainApp() {
   const snappedTileValuesRef = useRef<Tile | null>(null);
   const floatingTileRef = useRef<HTMLDivElement | null>(null);
   const matchEndPendingRef = useRef<boolean>(false);
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        suspendAudio();
+      } else {
+        resumeAudio();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
 
   const [scoreUser, setScoreUser] = useState<number>(0);
   const [scoreAi, setScoreAi] = useState<number>(0);
@@ -171,7 +182,7 @@ function MainApp() {
   const [adminConfig, setAdminConfig] = useState<AdminConfig>({
     defaultTarget: 100,
     allowCustomTarget: true,
-    enabledTargets: { 50: true, 100: true, 150: true, 200: true }
+    enabledTargets: { 100: true, 150: true, 200: true, 250: true, 300: true, 350: true, 500: true }
   });
 
   // Scores visuels (chronomètre / animation progressive)
@@ -337,8 +348,10 @@ function MainApp() {
   const [turnTimeLeft, setTurnTimeLeft] = useState<number>(GAME_CONFIG.turnTimerDuration);
 
   useEffect(() => {
-    if (turnTimeLeft === 0 && currentPlayer === "user" && matchStatus === "ongoing" && !isDealing && !matchWinner) {
-      if (noPlayState.active && noPlayState.step === "await_user_draw") {
+    if (turnTimeLeft === 0 && currentPlayer === "user" && matchStatus === "ongoing" && !matchWinner) {
+      if (isDealing) {
+        handleInitialDraw(0); // Auto draw the first available tile
+      } else if (noPlayState.active && noPlayState.step === "await_user_draw") {
         handleUserDraw(0);
       } else if (!noPlayState.active) {
         triggerAutoplayForUser();
@@ -348,20 +361,22 @@ function MainApp() {
 
   // Turn timer effect
   useEffect(() => {
-    const isNormalTurn = matchStatus === "ongoing" && !isDealing && !matchWinner && !noPlayState.active;
+    const isNormalTurn = matchStatus === "ongoing" && !isDealing && !matchWinner && !noPlayState.active && currentPlayer === "user";
     const isManualDraw = matchStatus === "ongoing" && !isDealing && !matchWinner && noPlayState.active && noPlayState.step === "await_user_draw" && noPlayState.player === "user";
+    const isManualDeal = matchStatus === "ongoing" && isDealing && currentPlayer === "user";
 
-    if (!isNormalTurn && !isManualDraw) {
+    if (!isNormalTurn && !isManualDraw && !isManualDeal) {
       return;
     }
 
-    setTurnTimeLeft(isManualDraw ? 10 : GAME_CONFIG.turnTimerDuration);
+    // Set 10s for manual draw or deal, otherwise standard turn time
+    setTurnTimeLeft((isManualDraw || isManualDeal) ? 10 : GAME_CONFIG.turnTimerDuration);
 
     const interval = setInterval(() => {
       setTurnTimeLeft((prev) => {
         if (prev <= 1) {
           logInternalEvent("timeout", "user");
-          return 0; // Will trigger automatic play in Step 3
+          return 0; // Will trigger automatic play
         }
         return prev - 1;
       });
@@ -2675,7 +2690,7 @@ function MainApp() {
               <div className="absolute top-0 bottom-[28px] left-1/2 -translate-x-1/2 w-[1px] bg-gradient-to-b from-[#d4af37] via-[#d4af37]/45 to-transparent pointer-events-none" />
 
               {/* Turn timer badge */}
-              {matchStatus === "ongoing" && !matchWinner && !isDealing && (
+              {matchStatus === "ongoing" && !matchWinner && (
                 <div className="absolute top-[18px] left-1/2 -translate-x-1/2 z-20 flex items-center justify-center pointer-events-none">
                   <div className="w-8 h-8 rounded-full bg-zinc-950/95 border border-amber-400/80 flex items-center justify-center text-amber-400 font-mono font-bold text-xs shadow-lg shadow-black/85 animate-pulse">
                     {turnTimeLeft}s
@@ -3430,11 +3445,11 @@ function MainApp() {
                 <div className="space-y-2">
                   <label className="text-[10px] text-gray-500 uppercase font-mono font-bold tracking-wider">Default Game Target</label>
                   <div className="grid grid-cols-4 gap-1 bg-[#181818] p-1 rounded-xl">
-                    {([50, 100, 150, 200] as number[]).map(val => (
+                    {([100, 150, 200, 250, 300, 350, 500] as number[]).map(val => (
                       <button
                         key={val}
                         onClick={() => {
-                          const nextConfig = { ...adminConfig, defaultTarget: val as 50 | 100 | 150 | 200 };
+                          const nextConfig = { ...adminConfig, defaultTarget: val as 100 | 150 | 200 | 250 | 300 | 350 | 500 };
                           setAdminConfig(nextConfig);
                           localStorage.setItem("maestro_domino_admin_config", JSON.stringify(nextConfig));
                           if (!adminConfig.allowCustomTarget) {
@@ -3475,8 +3490,8 @@ function MainApp() {
                 <div className="space-y-2 pt-2 border-t border-gray-800/30">
                   <span className="text-[10px] text-gray-500 uppercase font-mono font-bold tracking-wider block">Allowed Victory Limits</span>
                   <div className="grid grid-cols-2 gap-2">
-                    {([50, 100, 150, 200] as number[]).map(val => {
-                      const isEnabled = adminConfig.enabledTargets[val as 50 | 100 | 150 | 200];
+                    {([100, 150, 200, 250, 300, 350, 500] as number[]).map(val => {
+                      const isEnabled = adminConfig.enabledTargets[val as 100 | 150 | 200 | 250 | 300 | 350 | 500];
                       return (
                         <button
                           key={val}

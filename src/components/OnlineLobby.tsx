@@ -18,7 +18,7 @@ export function OnlineLobby({ currentUser, onSignOut, onNavigateToGame, onNaviga
   
   // Create room states
   const [newRoomName, setNewRoomName] = useState("");
-  const [newTargetScore, setNewTargetScore] = useState<50 | 100 | 150 | 200>(100);
+  const [newTargetScore, setNewTargetScore] = useState<100 | 150 | 200 | 250 | 300 | 350 | 500>(100);
   const [newDealOption, setNewDealOption] = useState<"auto" | "manual">("auto");
   const [newVisibility, setNewVisibility] = useState<"public" | "private">("public");
   const [newMatchMode, setNewMatchMode] = useState<"single" | "first_to" | "fixed">("first_to");
@@ -387,11 +387,11 @@ export function OnlineLobby({ currentUser, onSignOut, onNavigateToGame, onNaviga
               <div className="space-y-1">
                 <label className="text-[9px] text-gray-500 uppercase font-mono font-bold tracking-wider block">Score Cible</label>
                 <div className="grid grid-cols-4 gap-1.5 bg-[#181818] p-1 rounded-xl">
-                  {([50, 100, 150, 200] as const).map((val) => (
+                  {([100, 150, 200, 250, 300, 350, 500] as const).map((val) => (
                     <button
                       key={val}
                       type="button"
-                      onClick={() => setNewTargetScore(val)}
+                      onClick={() => setNewTargetScore(val as any)}
                       className={`py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                         newTargetScore === val ? "bg-gray-800 text-amber-500 shadow-sm" : "text-gray-400 hover:text-white"
                       }`}

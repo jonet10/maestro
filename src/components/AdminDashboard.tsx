@@ -55,7 +55,8 @@ export function AdminDashboard({ currentUser, onBack }: AdminDashboardProps) {
   const [playerSearch, setPlayerSearch] = useState("");
   const [newTName, setNewTName] = useState("");
   const [newTSize, setNewTSize] = useState<2 | 4 | 8 | 16 | 32>(8);
-  const [newTScore, setNewTScore] = useState<50 | 100 | 150 | 200>(100);
+  const [newTScore, setNewTScore] = useState<100 | 150 | 200 | 250 | 300 | 350 | 500>(100);
+  const [newTType, setNewTType] = useState<"liga" | "copa" | "ligue_des_champions" | "complet">("liga");
 
   // Stats / Overview counts
   const [totalPlayersCount, setTotalPlayersCount] = useState(0);
@@ -274,6 +275,7 @@ export function AdminDashboard({ currentUser, onBack }: AdminDashboardProps) {
           name: newTName.trim(),
           max_participants: newTSize,
           target_score: newTScore,
+          competition_type: newTType,
           status: "upcoming"
         }
       ]);
@@ -639,10 +641,27 @@ export function AdminDashboard({ currentUser, onBack }: AdminDashboardProps) {
                           onChange={(e) => setNewTScore(Number(e.target.value) as any)}
                           className="w-full bg-[#121212] border border-gray-800 rounded-xl py-2.5 px-3 text-xs text-white focus:outline-none focus:border-red-500/60 transition-all font-mono"
                         >
-                          <option value={50}>50 points</option>
                           <option value={100}>100 points</option>
                           <option value={150}>150 points</option>
                           <option value={200}>200 points</option>
+                          <option value={250}>250 points</option>
+                          <option value={300}>300 points</option>
+                          <option value={350}>350 points</option>
+                          <option value={500}>500 points</option>
+                        </select>
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <label className="text-[9px] text-gray-500 uppercase font-mono font-bold tracking-wider">Format</label>
+                        <select
+                          value={newTType}
+                          onChange={(e) => setNewTType(e.target.value as any)}
+                          className="w-full bg-[#121212] border border-gray-800 rounded-xl py-2.5 px-3 text-xs text-white focus:outline-none focus:border-red-500/60 transition-all font-mono"
+                        >
+                          <option value="liga">Liga</option>
+                          <option value="copa">Copa</option>
+                          <option value="ligue_des_champions">Ligue des Champions</option>
+                          <option value="complet">Mode Complet</option>
                         </select>
                       </div>
                     </div>

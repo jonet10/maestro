@@ -96,13 +96,16 @@ export interface GeneralAnalysis {
 }
 
 export interface AdminConfig {
-  defaultTarget: 50 | 100 | 150 | 200;
+  defaultTarget: 100 | 150 | 200 | 250 | 300 | 350 | 500;
   allowCustomTarget: boolean;
   enabledTargets: {
-    50: boolean;
     100: boolean;
     150: boolean;
     200: boolean;
+    250: boolean;
+    300: boolean;
+    350: boolean;
+    500: boolean;
   };
 }
 

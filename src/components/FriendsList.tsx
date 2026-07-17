@@ -18,6 +18,15 @@ export const FriendsList: React.FC<FriendsListProps> = ({ currentUser, onNavigat
   const [isSearching, setIsSearching] = useState(false);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Invite Modal States
+  const [inviteModalData, setInviteModalData] = useState<{ friendId: string, friendName: string } | null>(null);
+  const [inviteTargetScore, setInviteTargetScore] = useState<100 | 150 | 200 | 250 | 300 | 350 | 500>(100);
+  const [inviteMatchMode, setInviteMatchMode] = useState<"single" | "first_to" | "fixed">("first_to");
+  const [inviteTargetManches, setInviteTargetManches] = useState<number>(3);
+  const [inviteDealOption, setInviteDealOption] = useState<"auto" | "manual">("auto");
+  const [isInviting, setIsInviting] = useState(false);
+
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -104,15 +113,26 @@ export const FriendsList: React.FC<FriendsListProps> = ({ currentUser, onNavigat
     }
   };
 
-  const handleInviteToGame = async (friendId: string, friendName: string) => {
+  const handleOpenInviteModal = (friendId: string, friendName: string) => {
+    setInviteModalData({ friendId, friendName });
+  };
+
+  const handleConfirmInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteModalData) return;
+    const { friendId, friendName } = inviteModalData;
+    
     if (!supabase || !onNavigateToGame) return;
+    setIsInviting(true);
     try {
       const roomName = `Match vs ${friendName}`;
       const { data: roomId, error } = await supabase.rpc("create_room", {
         room_name: roomName,
-        target_score: 100,
-        deal_option: 'auto',
+        target_score: inviteTargetScore,
+        deal_option: inviteDealOption,
         visibility: 'private',
+        match_mode: inviteMatchMode,
+        target_manches: inviteMatchMode === "fixed" ? 9999 : (inviteMatchMode === "single" ? 1 : inviteTargetManches)
       });
 
       if (error) throw error;
@@ -120,11 +140,14 @@ export const FriendsList: React.FC<FriendsListProps> = ({ currentUser, onNavigat
       
       await sendGameInvite(currentUser.id, friendId, roomId);
       localStorage.setItem("active_online_room_id", roomId);
+      setInviteModalData(null);
+      setIsInviting(false);
       onNavigateToGame(roomId);
     } catch (err) {
       console.error("Failed to invite to game", err);
       if (mountedRef.current) {
         setFeedback({ message: "Erreur lors de la création du match.", type: 'error' });
+        setIsInviting(false);
         setTimeout(() => {
           if (mountedRef.current) setFeedback(null);
         }, 3000);
@@ -233,7 +256,6 @@ export const FriendsList: React.FC<FriendsListProps> = ({ currentUser, onNavigat
                     <div className="flex items-center gap-2">
                       <div className="w-8 h-8 rounded-full bg-stone-800 flex items-center justify-center text-stone-400 font-bold relative">
                         {friend.username.charAt(0).toUpperCase()}
-                        {/* Placeholder for online status, defaults to offline right now */}
                         <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-stone-500 rounded-full border border-[#140804]"></div>
                       </div>
                       <span className="text-sm font-medium text-stone-300">{friend.username}</span>
@@ -241,8 +263,8 @@ export const FriendsList: React.FC<FriendsListProps> = ({ currentUser, onNavigat
                     
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
                       <button 
-                        onClick={() => handleInviteToGame(friend.id, friend.username)}
-                        className="p-1.5 text-stone-600 hover:text-amber-500 hover:bg-amber-950/30 rounded-md"
+                        onClick={() => handleOpenInviteModal(friend.id, friend.username)}
+                        className="p-2 text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors"
                         title="Inviter à jouer"
                       >
                         <Gamepad2 className="w-4 h-4" />
@@ -288,6 +310,116 @@ export const FriendsList: React.FC<FriendsListProps> = ({ currentUser, onNavigat
           </>
         )}
       </div>
+
+      {inviteModalData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+          <div className="bg-[#140804] border border-[#3a1506] p-6 rounded-2xl shadow-2xl max-w-sm w-full">
+            <h3 className="text-xl font-bold text-amber-500 mb-4 font-serif text-center">Défi contre {inviteModalData.friendName}</h3>
+            
+            <form onSubmit={handleConfirmInvite} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[9px] text-gray-500 uppercase font-mono font-bold tracking-wider block">Score Cible</label>
+                <div className="grid grid-cols-4 gap-1.5 bg-[#181818] p-1 rounded-xl">
+                  {([100, 150, 200, 250, 300, 350, 500] as const).map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setInviteTargetScore(val as any)}
+                      className={`py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                        inviteTargetScore === val ? "bg-[#3a1506] text-amber-500 shadow-sm" : "text-gray-400 hover:text-white"
+                      }`}
+                    >
+                      {val}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] text-gray-500 uppercase font-mono font-bold tracking-wider block">Mode du Match</label>
+                <div className="grid grid-cols-3 gap-1 bg-[#181818] p-1 rounded-xl">
+                  {(["single", "first_to", "fixed"] as const).map((mode) => {
+                    const labels = { single: "Unique", first_to: "Premier à", fixed: "Fixe" };
+                    return (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setInviteMatchMode(mode as any)}
+                        className={`py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                          inviteMatchMode === mode ? "bg-[#3a1506] text-amber-500 shadow-sm" : "text-gray-400 hover:text-white"
+                        }`}
+                      >
+                        {labels[mode as keyof typeof labels]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {inviteMatchMode !== "single" && (
+                <div className="space-y-1">
+                  <label className="text-[9px] text-gray-500 uppercase font-mono font-bold tracking-wider block">
+                    {inviteMatchMode === "first_to" ? "Nombre de manches gagnantes" : "Nombre de manches au total"}
+                  </label>
+                  <div className="flex items-center gap-3 bg-[#181818] p-2 rounded-xl">
+                    <button
+                      type="button"
+                      onClick={() => setInviteTargetManches(Math.max(2, inviteTargetManches - 1))}
+                      className="w-8 h-8 rounded-lg bg-[#2a1005] text-amber-500 font-bold hover:bg-[#3a1506] transition-colors"
+                    >-</button>
+                    <div className="flex-1 text-center font-bold text-white">
+                      {inviteTargetManches} manches
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setInviteTargetManches(Math.min(10, inviteTargetManches + 1))}
+                      className="w-8 h-8 rounded-lg bg-[#2a1005] text-amber-500 font-bold hover:bg-[#3a1506] transition-colors"
+                    >+</button>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <label className="text-[9px] text-gray-500 uppercase font-mono font-bold tracking-wider block">Distribution</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setInviteDealOption("auto")}
+                    className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                      inviteDealOption === "auto" ? "bg-[#3a1506] text-amber-500 border border-amber-500/30" : "bg-[#181818] text-gray-400 border border-transparent"
+                    }`}
+                  >Automatique</button>
+                  <button
+                    type="button"
+                    onClick={() => setInviteDealOption("manual")}
+                    className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+                      inviteDealOption === "manual" ? "bg-[#3a1506] text-amber-500 border border-amber-500/30" : "bg-[#181818] text-gray-400 border border-transparent"
+                    }`}
+                  >Manuelle</button>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4 border-t border-[#3a1506]">
+                <button
+                  type="button"
+                  onClick={() => setInviteModalData(null)}
+                  className="flex-1 py-2.5 bg-transparent text-gray-400 hover:text-white rounded-xl font-bold text-xs transition-colors"
+                  disabled={isInviting}
+                >
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={isInviting}
+                  className="flex-1 py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 text-stone-950 rounded-xl font-bold text-xs shadow-lg shadow-amber-900/20 hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2"
+                >
+                  {isInviting ? "Création..." : "Lancer le défi"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

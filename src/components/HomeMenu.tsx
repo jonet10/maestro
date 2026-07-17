@@ -104,10 +104,15 @@ export function HomeMenu({
         <div className="w-full space-y-4 max-w-xs mx-auto pb-4">
           <button
             onClick={onStartNewGame}
-            className="w-full flex items-center justify-center gap-3 py-4 rounded-xl font-bold text-lg bg-gradient-to-b from-amber-400 to-amber-600 text-black shadow-lg shadow-amber-900/30 hover:brightness-110 active:scale-95 transition-all cursor-pointer"
+            disabled={canContinue}
+            className={`w-full flex items-center justify-center gap-3 py-4 rounded-xl font-bold text-lg shadow-lg transition-all ${
+              canContinue 
+                ? "bg-gray-800 text-gray-500 cursor-not-allowed opacity-70" 
+                : "bg-gradient-to-b from-amber-400 to-amber-600 text-black shadow-amber-900/30 hover:brightness-110 active:scale-95 cursor-pointer"
+            }`}
           >
             <Play fill="currentColor" size={20} />
-            <span>New Game</span>
+            <span>Nouvelle Partie</span>
           </button>
 
           <button
@@ -115,7 +120,7 @@ export function HomeMenu({
             className="w-full flex items-center justify-center gap-3 py-4 rounded-xl font-bold text-sm bg-gradient-to-b from-[#d4af37]/20 to-[#d4af37]/10 border border-[#d4af37]/45 text-[#d4af37] shadow-lg hover:brightness-115 active:scale-95 transition-all cursor-pointer"
           >
             <Users size={18} />
-            <span>Online Multiplayer</span>
+            <span>Multijoueur en ligne</span>
           </button>
 
           <button
@@ -136,19 +141,15 @@ export function HomeMenu({
             </button>
           )}
 
-          <button
-            onClick={onContinueGame}
-            disabled={!canContinue}
-            className={`w-full flex items-center justify-center gap-3 py-4 rounded-xl font-semibold text-sm transition-all border cursor-pointer
-              ${canContinue 
-                ? "bg-[#151515] border-amber-900/40 text-amber-500 hover:bg-[#1a1a1a] active:scale-95 shadow-md" 
-                : "bg-[#101010] border-gray-800 text-gray-600 cursor-not-allowed opacity-70"
-              }
-            `}
-          >
-            <RotateCcw size={18} />
-            <span>Continue Game</span>
-          </button>
+          {canContinue && (
+            <button
+              onClick={onContinueGame}
+              className="w-full flex items-center justify-center gap-3 py-4 rounded-xl font-bold text-lg bg-gradient-to-b from-blue-500 to-blue-700 text-white shadow-lg shadow-blue-900/30 hover:brightness-110 active:scale-95 transition-all cursor-pointer border border-blue-400/50 mt-4"
+            >
+              <RotateCcw size={20} />
+              <span>Reprendre la partie</span>
+            </button>
+          )}
 
 
           <button
