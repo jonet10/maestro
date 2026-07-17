@@ -7,7 +7,7 @@ const initAudio = () => {
     audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
   }
   if (audioCtx.state === 'suspended' && !document.hidden) {
-    audioCtx.resume();
+    audioCtx.resume().catch(() => {});
   }
   return audioCtx;
 };
@@ -20,7 +20,7 @@ export const suspendAudio = () => {
 
 export const resumeAudio = () => {
   if (audioCtx && audioCtx.state === 'suspended' && !document.hidden) {
-    audioCtx.resume();
+    audioCtx.resume().catch(() => {});
   }
 };
 
@@ -28,6 +28,9 @@ export const playTilePlacementSound = () => {
   try {
     const ctx = initAudio();
     if (!ctx) return;
+
+    // Prevent warnings if browser blocks audio before user interaction
+    if (ctx.state !== 'running') return;
 
     // We create two oscillators to simulate the hollow "clack" of dominoes
     const osc1 = ctx.createOscillator();

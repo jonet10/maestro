@@ -304,6 +304,9 @@ BEGIN
     IF prev_creator_score >= target_score OR prev_opponent_score >= target_score THEN
       new_score_creator := 0;
       new_score_opponent := 0;
+      next_round_starter := NULL; -- Force le plus gros double pour la NOUVELLE PARTIE !
+    ELSE
+      next_round_starter := (r_row.game_state->>'nextRoundStarter')::uuid;
     END IF;
 
     deck := public.generate_shuffled_deck();
@@ -321,7 +324,7 @@ BEGIN
       boneyard := boneyard || jsonb_build_array(deck->i);
     END LOOP;
 
-    next_round_starter := (r_row.game_state->>'nextRoundStarter')::uuid;
+    -- next_round_starter est soit NULL (nouvelle partie), soit le vainqueur de la manche précédente
     IF next_round_starter IS NULL THEN
       cur_player := public.determine_starting_player(p_hand, r_row.creator_id, o_hand, r_row.opponent_id);
     ELSE

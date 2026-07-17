@@ -829,7 +829,7 @@ BEGIN
       boneyard := boneyard || (deck->i);
     END LOOP;
 
-    next_round_starter := (r_row.game_state->>'nextRoundStarter')::uuid;
+    -- next_round_starter est soit NULL (nouvelle partie), soit le vainqueur de la manche précédente
     IF next_round_starter IS NULL THEN
       cur_player := public.determine_starting_player(p_hand, r_row.creator_id, o_hand, r_row.opponent_id);
     ELSE
